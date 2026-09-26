@@ -1,0 +1,30 @@
+{
+  "name": "org",
+  "owner": {
+    "name": "darrel1234"
+  },
+  "license": "TODO",
+  "homepage": "https://github.com/darrel1234/bmad-org-kit",
+  "repository": "https://github.com/darrel1234/bmad-org-kit",
+  "keywords": [
+    "bmad",
+    "governance",
+    "standards",
+    "jira"
+  ],
+  "plugins": [
+    {
+      "name": "org",
+      "source": "./",
+      "description": "Org Kit: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides and Jules, the IT governance agent, for BMad Method projects.",
+      "version": "1.0.0",
+      "author": {
+        "name": "darrel1234"
+      },
+      "skills": [
+        "./skills/agent-jules",
+        "./skills/org-setup"
+      ]
+    }
+  ]
+}

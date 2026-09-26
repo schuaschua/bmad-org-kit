@@ -1,0 +1,43 @@
+code: org
+name: "Org Kit"
+description: "Organisation layer for BMad Method projects: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides and Jules, the IT governance agent"
+module_version: 1.0.0
+default_selected: false
+module_greeting: >
+  Org Kit is installed. The org standards baselines are in your standards folder and the blank
+  governance questionnaires in your governance folder; extend them for this project.
+  Talk to Jules (IT Governance) when you are ready to answer the Criticality or Cloud Assessment.
+  Run org-setup again at any time to reconfigure or after updating the kit.
+
+agents:
+  # Flow style keeps the roster's keys off top-level-looking lines for line-based parsers.
+  - { code: "agent-jules", name: "Jules", title: "IT Governance", icon: "🛡️", description: "Drafts, coaches and routes IT governance questionnaire answers (Criticality and Cloud Assessments) for the Product Lead and Tech Lead from the project's BMad artifacts, with a 2-hourly reviewer-comment watch." }
+
+jira_site:
+  prompt: "Which Jira site does this project use?"
+  default: ""
+  example: "https://<site>.atlassian.net"
+  required: true
+  regex: "^https://[a-z0-9-]+\\.atlassian\\.net/?$"
+
+jira_project_key:
+  prompt: "What is this project's Jira project key?"
+  default: ""
+  example: "PROJ"
+  required: true
+  regex: "^[A-Z][A-Z0-9]+$"
+
+confluence_wiki_url:
+  prompt: "Confluence wiki page for this project (optional; answer 'none' if there is none)"
+  default: ""
+  example: "https://<site>.atlassian.net/wiki/spaces/<SPACE>/pages/<id>"
+
+governance_folder:
+  prompt: "Where do the IT governance questionnaires live?"
+  default: "docs/governance"
+  result: "{project-root}/{value}"
+
+standards_folder:
+  prompt: "Where do the project's engineering standards live?"
+  default: "docs/standards"
+  result: "{project-root}/{value}"
