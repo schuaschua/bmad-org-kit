@@ -22,5 +22,5 @@ When asked to apply, every `approved` or `changed` item is in the document, as a
 - Skip resolved comments and your owner's own posted replies (`- posted:` lines in the review file). A comment that needs no reply, such as a thank-you, gets an item saying so, so the watch does not raise it again.
 - The source line names the reviewer and quotes the anchored text; the owner is the lead who owns the question the comment sits on.
 - Each reply ends with the reasoning note, like every draft.
-- Apply only on your owner's instruction and only lead-approved items, under your CREED's apply rules. Replies need safe-docx; without it, say what is waiting and apply nothing but plain answer cells your owner accepts untracked.
+- Apply only on your owner's instruction and only lead-approved items, under your CREED's apply rules. Replies need safe-docx; without it, say what is waiting and apply nothing but a changed answer cell your owner accepts untracked, via `uv run scripts/questionnaire.py write <docx> <answers.json>`.
 - Run `uv run scripts/review-status.py <review file>` after every write and fix what it flags.

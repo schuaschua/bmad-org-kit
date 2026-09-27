@@ -8,7 +8,7 @@ type: prompt
 
 # Answer a Questionnaire
 
-Run only when your owner names a questionnaire and asks you to answer it, in full or for named questions.
+Run only when your owner names a questionnaire and asks you to answer it, in full or for named questions. One questionnaire per session (SKILL.md): if you've already finished one this session, say so and suggest picking the next one up fresh rather than starting it now.
 
 ## What success looks like
 
@@ -18,9 +18,10 @@ Hand back a short list per lead of the items that need them, the most consequent
 
 ## What you must hold
 
-- Classify each question by owner and by source tier (your CREED's source order). Business impact, revenue, users, core processes, RTO and RPO, adjoining systems, partners and vendors belong to the Product Lead; platform, stack and security controls to the Tech Lead. A question that spans both goes to the lead who must sign it, with the other named in the source line.
+- Extract the question table with `uv run scripts/questionnaire.py extract <docx>`: id, question, current answer and a content hash per row, with no need to open the document any other way. Never read a questionnaire .docx by any other means.
+- Re-answer only a row that needs it: this project's answer library (AL) has no hash on file for it yet (first pass), its hash differs from the one AL recorded last time, it carries an open reviewer comment (`docx-comments.py`), or drift-check (DR) has an open `D-<n>` against it. Every other row keeps its recorded answer untouched — don't re-derive, re-cite or re-check it. Say in one line how many rows you skipped this way.
+- Classify each row you do answer by owner and by source tier (your CREED's source order). Business impact, revenue, users, core processes, RTO and RPO, adjoining systems, partners and vendors belong to the Product Lead; platform, stack and security controls to the Tech Lead. A question that spans both goes to the lead who must sign it, with the other named in the source line.
 - Consult the answer library (AL) for how past projects answered the same question, and mention a match in the note as reference only. Never lift a figure from it. RTO and RPO are always asked fresh.
-- A .docx answer cell that already holds text is an existing answer: verify it against the artifacts and draft either a confirmation or a correction, citing what you checked.
-- Prefer safe-docx (tracked changes) when its tools are loaded; otherwise python-docx writes the answer cells directly.
-- Read the .docx with the safe-docx MCP server when it is available; otherwise python-docx (`uv run --with python-docx python …`) reads the question table.
-- Before handing back, re-read the answer cells and confirm every answer ends with the reasoning note.
+- When a row due for re-answering already holds text, that's an existing answer, not a blank: verify it against the artifacts and draft either a confirmation or a correction, citing what you checked.
+- Prefer safe-docx (tracked changes) when its tools are loaded; otherwise `uv run scripts/questionnaire.py write <docx> <answers.json>` writes the answer cells directly, from one JSON file mapping row id to finished answer text (reasoning note included). Either way, only the answer cell's text changes — the org's table structure, columns and formatting stay exactly as issued.
+- After writing, record each answered row's question and hash alongside its answer in the answer library (AL), so the next pass can compare hashes instead of rereading the question.

@@ -57,7 +57,7 @@ Note: I have derived this answer from … because ….
 
 ### Apply only what was approved, only when asked
 
-Writing into a .docx happens only on an explicit instruction from my owner, and only for items the lead marked `approved` or `changed`. Prefer the safe-docx MCP server: answers go into the answer cell as tracked changes and replies go onto the comment thread. Without safe-docx, python-docx may write answer cells (say plainly that the edit is not tracked and get my owner's go-ahead first); comment replies wait for safe-docx. After writing, set the item to `applied` and record the posted reply's comment key on a `- posted:` line so the comment watch never treats my own reply as new.
+Writing into a .docx happens only on an explicit instruction from my owner, and only for items the lead marked `approved` or `changed`. Prefer the safe-docx MCP server: answers go into the answer cell as tracked changes and replies go onto the comment thread. Without safe-docx, `scripts/questionnaire.py write` may write answer cells (say plainly that the edit is not tracked and get my owner's go-ahead first); comment replies wait for safe-docx. After writing, set the item to `applied` and record the posted reply's comment key on a `- posted:` line so the comment watch never treats my own reply as new.
 
 ### Capture every approval
 
