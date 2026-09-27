@@ -5,7 +5,9 @@
 """Describe a project's architecture spines, diagrams folder and existing diagrams as JSON.
 
 Without --spine: the spines found at the BMad location, the diagrams folder (org config
-`diagrams_folder`), the diagrams already in it, whether draw.io desktop is installed for
+`diagrams_folder`), the diagrams already in it, the design documents folder (org config
+`design_docs_folder`), its document models and which outlines and Word template it uses, this project's
+`confluence_wiki_url` ("" when it has none), whether draw.io desktop is installed for
 PNG/SVG exports, and the user's name and language from BMad's config.
 
 With --spine: that spine's stamp, which is what a diagram records about the spine it was
@@ -41,6 +43,7 @@ from pathlib import Path
 
 SPINE_GLOB = "_bmad-output/planning-artifacts/architecture/*/ARCHITECTURE-SPINE.md"
 DEFAULT_FOLDER = "docs/architecture/diagrams"
+DEFAULT_DOCS_FOLDER = "docs/architecture/design"
 CONFIG_FILES = ["_bmad/config.toml", "_bmad/custom/config.toml", "_bmad/custom/config.user.toml"]
 # An AD is defined only by a heading ("### AD-4 Hosting") or a bold id at the start of a list item or
 # paragraph ("- **AD-4** ..."). A plain line that starts with an id ("AD-2 constrains this") is a mention
@@ -69,12 +72,21 @@ def core_settings(root: Path) -> dict:
 
 def diagrams_folder(root: Path) -> Path:
     """The org config's diagrams_folder (custom overrides win), resolved against the root."""
-    value = DEFAULT_FOLDER
+    return org_folder(root, "diagrams_folder", DEFAULT_FOLDER)
+
+
+def design_docs_folder(root: Path) -> Path:
+    """The org config's design_docs_folder (custom overrides win), resolved against the root."""
+    return org_folder(root, "design_docs_folder", DEFAULT_DOCS_FOLDER)
+
+
+def org_folder(root: Path, key: str, default: str) -> Path:
+    value = default
     for rel in CONFIG_FILES:
         path = root / rel
         if path.is_file():
             try:
-                found = tomllib.loads(path.read_text(encoding="utf-8")).get("modules", {}).get("org", {}).get("diagrams_folder")
+                found = tomllib.loads(path.read_text(encoding="utf-8")).get("modules", {}).get("org", {}).get(key)
             except tomllib.TOMLDecodeError:
                 continue
             if isinstance(found, str) and found.strip():
@@ -82,6 +94,29 @@ def diagrams_folder(root: Path) -> Path:
     value = value.replace("{project-root}", "").lstrip("/\\") if value.startswith("{project-root}") else value
     path = Path(value)
     return path if path.is_absolute() else root / path
+
+
+def org_value(root: Path, key: str) -> str:
+    """A [modules.org] setting of this project (custom overrides win); "" when unset or 'none'."""
+    value = ""
+    for rel in CONFIG_FILES:
+        path = root / rel
+        if path.is_file():
+            try:
+                found = tomllib.loads(path.read_text(encoding="utf-8")).get("modules", {}).get("org", {}).get(key)
+            except tomllib.TOMLDecodeError:
+                continue
+            if isinstance(found, str):
+                value = found.strip()
+    return "" if value.lower() == "none" else value
+
+
+def design_templates(folder: Path) -> dict:
+    """The project's own design-doc outlines and Word style template, where it has them."""
+    t = folder / "templates"
+    return {"hld": (t / "hld.md").as_posix() if (t / "hld.md").is_file() else "kit default",
+            "lld": (t / "lld.md").as_posix() if (t / "lld.md").is_file() else "kit default",
+            "word": (t / "reference.docx").as_posix() if (t / "reference.docx").is_file() else "kit default styles"}
 
 
 def drawio_cli() -> str | None:
@@ -167,11 +202,16 @@ def main(argv: list[str] | None = None) -> int:
     else:
         spines = find_spines(root)
         folder = diagrams_folder(root)
+        design_folder = design_docs_folder(root)
         result = {
             "status": "success" if spines else "error",
             "spines": [p.relative_to(root).as_posix() for p in spines],
             "diagrams_folder": folder.as_posix(),
             "diagrams": sorted(p.name for p in folder.glob("*.drawio")) if folder.is_dir() else [],
+            "design_docs_folder": design_folder.as_posix(),
+            "design_docs": sorted(p.name for p in design_folder.glob("*.doc.json")) if design_folder.is_dir() else [],
+            "design_templates": design_templates(design_folder),
+            "confluence_wiki_url": org_value(root, "confluence_wiki_url"),
             "drawio_cli": drawio_cli(),
             **core_settings(root),
         }

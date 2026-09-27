@@ -103,7 +103,7 @@ def test_shell_activity(command: str, activity: str) -> None:
     assert token_report.activity_of([{"type": "tool_use", "name": "Bash", "input": {"command": command}}]) == activity
 
 
-def test_main_writes_four_files_and_a_story_line(logs: Path, tmp_path: Path, capsys) -> None:
+def test_main_writes_five_files_and_a_story_line(logs: Path, tmp_path: Path, capsys) -> None:
     stories_file = tmp_path / "stories.json"
     stories_file.write_text(json.dumps({"stories": {k: list(v) for k, v in STORIES.items()}}))
     out = tmp_path / "out"
@@ -112,7 +112,7 @@ def test_main_writes_four_files_and_a_story_line(logs: Path, tmp_path: Path, cap
     assert code == 0
     result = json.loads(capsys.readouterr().out)
     assert sorted(Path(p).name for p in result["written"]) == [
-        "report.md", "token_usage.csv", "token_usage_summary.csv", "token_usage_summary_final.csv"]
+        "claude_usage.csv", "report.md", "token_usage.csv", "token_usage_summary.csv", "token_usage_summary_final.csv"]
     assert result["story"]["line"].startswith("PROJ-18 (2.3): ")
     assert result["story"]["calls"] == 4  # m3, which started the build, ran on dev: ops
 
@@ -121,6 +121,11 @@ def test_main_writes_four_files_and_a_story_line(logs: Path, tmp_path: Path, cap
     assert len(story_rows) == 7  # the total plus six activity rows
     final = list(csv.reader((out / "token_usage_summary_final.csv").open()))
     assert any(r[0].startswith("All stories (2.3 to 3.1)") for r in final)
+    usage = list(csv.DictReader((out / "claude_usage.csv").open()))
+    assert sum(int(r["calls"]) for r in usage) == result["calls"]
+    story = [r for r in usage if r["work_item"] == "PROJ-18"]
+    assert story and all(r["first_call"] <= r["last_call"] for r in story)
+    assert story[0]["story_no"] == "2.3" and story[0]["model"] == "claude-sonnet-5"
     total = int(final[-1][1])
     top_level = sum(int(r[1]) for r in final[1:-1] if " · " not in r[0])
     assert abs(top_level - total) <= len(final)  # rows are rounded one by one

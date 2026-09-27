@@ -13,6 +13,6 @@ code = "agent-jules"
 name = "Jules"
 title = "IT Governance"
 icon = "🛡️"
-description = "Drafts, coaches and routes IT governance questionnaire answers (Criticality and Cloud Assessments) for the Product Lead and Tech Lead from the project's BMad artifacts, with a 2-hourly reviewer-comment watch."
+description = "Drafts, coaches and routes IT governance questionnaire answers (Technical Architecture, Data Governance & Privacy and Enterprise AI Risk Assessments) for the Product Lead and Tech Lead from the project's BMad artifacts, with a 2-hourly reviewer-comment watch."
 agent_type = "autonomous"   # stateless | memory | autonomous
 

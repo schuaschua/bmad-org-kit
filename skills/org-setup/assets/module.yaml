@@ -1,19 +1,20 @@
 code: org
 name: "Org Kit"
-description: "Organisation layer for BMad Method projects: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides, Jules (IT governance), Scrooge McDuck (token usage) and Leonardo da Vinci (architecture diagrams)"
-module_version: 1.4.1
+description: "Organisation layer for BMad Method projects: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides, Jules (IT governance), Scrooge McDuck (token usage and cost estimates) and Leonardo da Vinci (architecture diagrams and design documents)"
+module_version: 1.5.0
 default_selected: false
 module_greeting: >
   Org Kit is installed. The org standards baselines are in your standards folder and the blank
   governance questionnaires in your governance folder; extend them for this project.
-  Talk to Jules (IT Governance) when you are ready to answer the Criticality or Cloud Assessment,
-  and to Scrooge McDuck when you want to know where the tokens went.
+  Talk to Jules (IT Governance) when you are ready to answer the Technical Architecture, Data Governance & Privacy
+  or Enterprise AI Risk Assessment,
+  and to Scrooge McDuck when you want to know where the tokens went or what the solution will cost.
   Run org-setup again at any time to reconfigure or after updating the kit.
 
 agents:
   # Flow style keeps the roster's keys off top-level-looking lines for line-based parsers.
-  - { code: "agent-jules", name: "Jules", title: "IT Governance", icon: "🛡️", description: "Drafts, coaches and routes IT governance questionnaire answers (Criticality and Cloud Assessments) for the Product Lead and Tech Lead from the project's BMad artifacts, with a 2-hourly reviewer-comment watch." }
-  - { code: "agent-scrooge", name: "Scrooge McDuck", title: "Token Usage Accountant", icon: "💰", description: "Keeps the project's token ledger from its Claude Code logs, explains where the tokens went by story, step and activity, and suggests how to spend fewer." }
+  - { code: "agent-jules", name: "Jules", title: "IT Governance", icon: "🛡️", description: "Drafts, coaches and routes IT governance questionnaire answers (Technical Architecture, Data Governance & Privacy and Enterprise AI Risk Assessments) for the Product Lead and Tech Lead from the project's BMad artifacts, with a 2-hourly reviewer-comment watch." }
+  - { code: "agent-scrooge", name: "Scrooge McDuck", title: "Token Usage Accountant and Cost Estimator", icon: "💰", description: "Keeps the project's token ledger from its Claude Code logs and suggests how to spend fewer tokens; prices the solution from its BMad artifacts into an Excel cost estimate with a sheet per environment, a rate card and team mandays." }
 
 jira_site:
   prompt: "Which Jira site does this project use?"
@@ -49,9 +50,19 @@ token_usage_folder:
   default: "docs/token_usage"
   result: "{project-root}/{value}"
 
+cost_estimates_folder:
+  prompt: "Where should Scrooge write cost estimates (estimate models and Excel workbooks)?"
+  default: "docs/cost_estimates"
+  result: "{project-root}/{value}"
+
 diagrams_folder:
   prompt: "Where should architecture diagrams (.drawio, with PNG/SVG exports) be written?"
   default: "docs/architecture/diagrams"
+  result: "{project-root}/{value}"
+
+design_docs_folder:
+  prompt: "Where should High-Level and Low-Level Design documents (.docx) and their models be written?"
+  default: "docs/architecture/design"
   result: "{project-root}/{value}"
 
 region:

@@ -4,7 +4,8 @@
 # ///
 """Read and write a governance questionnaire's answer table without opening it.
 
-A questionnaire .docx (CloudAssessment, CriticalityAssessment, ...) holds one
+A questionnaire .docx (TechnicalArchitectureAssessment, DataGovernancePrivacyAssessment,
+EnterpriseAIRiskAssessment, ...) holds one
 table with a header row (No | Question | Answer, in any order) and one data
 row per question. Both subcommands work directly on word/document.xml via
 zipfile + the standard library's XML parser — no python-docx needed.
@@ -69,10 +70,16 @@ def _read_document_xml(docx: Path) -> bytes:
 
 
 def find_table(root: ET.Element) -> ET.Element:
-    tbl = next(root.iter(q("tbl")), None)
-    if tbl is None:
+    """The question table: the first whose header row has a Question column (an org's own template may
+    open with a cover or document-control table), else the first table."""
+    tables = list(root.iter(q("tbl")))
+    if not tables:
         raise QuestionnaireError("no table found in the document")
-    return tbl
+    for tbl in tables:
+        first = tbl.find(q("tr"))
+        if first is not None and any(QUESTION_HEADERS_HINT in cell_text(tc).lower() for tc in first.findall(q("tc"))):
+            return tbl
+    return tables[0]
 
 
 def cell_text(tc: ET.Element) -> str:

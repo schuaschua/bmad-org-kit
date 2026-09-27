@@ -51,7 +51,7 @@ class InstallOrgAssetsTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         for name in ["azure.md", "terraform.md", "security.md", "coding-style.md"]:
             self.assertTrue((self.root / "docs" / "standards" / name).is_file(), name)
-        for name in ["CloudAssessment.docx", "CriticalityAssessment.docx"]:
+        for name in ["TechnicalArchitectureAssessment.docx", "DataGovernancePrivacyAssessment.docx", "EnterpriseAIRiskAssessment.docx"]:
             self.assertTrue((self.root / "docs" / "governance" / name).is_file(), name)
         custom = self.root / "_bmad" / "custom"
         self.assertEqual(len(out["overrides"]["written"]), 7)
@@ -60,6 +60,14 @@ class InstallOrgAssetsTests(unittest.TestCase):
         epics = tomllib.loads((custom / "bmad-create-epics-and-stories.toml").read_text(encoding="utf-8"))
         self.assertIn("Jira project PROJ (https://example.atlassian.net)", epics["workflow"]["on_complete"])
         self.assertEqual(len(epics["workflow"]["persistent_facts"]), 1)
+        arch = tomllib.loads((custom / "bmad-architecture.toml").read_text(encoding="utf-8"))
+        self.assertEqual(arch["workflow"]["persistent_facts"], ["file:docs/standards/*.md"])
+        self.assertIn("Jules", arch["workflow"]["on_complete"])
+        self.assertIn("Scrooge", arch["workflow"]["on_complete"])
+        for name in ("bmad-build.toml", "bmad-build-auto.toml"):
+            build = tomllib.loads((custom / name).read_text(encoding="utf-8"))
+            self.assertEqual(build["workflow"]["persistent_facts"], ["file:docs/standards/*.md"])
+            self.assertIn("close out the project", build["workflow"]["on_complete"])
 
     def test_never_overwrites_existing_files(self):
         standards = self.root / "docs" / "standards"

@@ -94,6 +94,33 @@ class ExtractTests(unittest.TestCase):
             self.assertEqual(run.returncode, 2)
 
 
+COVER = """<w:tbl>
+<w:tr><w:tc><w:p><w:r><w:t>Document</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>ACME governance form</w:t></w:r></w:p></w:tc></w:tr>
+<w:tr><w:tc><w:p><w:r><w:t>Version</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>0.1</w:t></w:r></w:p></w:tc></w:tr>
+</w:tbl>
+"""
+
+
+class CustomTemplateTests(unittest.TestCase):
+    def test_skips_a_cover_table_to_the_question_table(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "AcmeForm.docx"
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("word/document.xml", DOCUMENT.replace("<w:body>\n", "<w:body>\n" + COVER, 1))
+            rows = questionnaire.extract_rows(path)
+            self.assertEqual([r["id"] for r in rows], ["1", "2"])
+            self.assertEqual(rows[0]["question"], "What made-up widget powers the gizmo?")
+            answers = Path(tmp) / "answers.json"
+            answers.write_text(json.dumps({"2": "The Product Lead."}), encoding="utf-8")
+            out = subprocess.run([sys.executable, str(SCRIPTS / "questionnaire.py"), "write", str(path), str(answers)],
+                                 capture_output=True, text=True)
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+            xml = zipfile.ZipFile(path).read("word/document.xml").decode("utf-8")
+            self.assertIn("ACME governance form", xml)
+            self.assertIn("The Product Lead.", xml)
+            self.assertEqual(questionnaire.extract_rows(path)[1]["answer"], "The Product Lead.")
+
+
 class WriteTests(unittest.TestCase):
     def test_write_updates_only_targeted_row_and_keeps_hash_stable(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:

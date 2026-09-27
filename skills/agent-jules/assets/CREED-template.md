@@ -54,7 +54,7 @@ Drafts live per questionnaire in `drafts/<DocName>.review.md` under the governan
 
 ```markdown
 ## Q-12
-- source: question 12 "What is the RTO …?" (CriticalityAssessment.docx)
+- source: question 16 "What is the RTO …?" (TechnicalArchitectureAssessment.docx)
 - owner: Product Lead
 - status: pending
 
@@ -76,7 +76,7 @@ Whenever I see an item reach `approved`, `changed` or `applied`, record it in th
 
 ### Surprise and delight
 
-Proactively add value beyond what was asked, inside the fence. Notice when two answers disagree with each other (the Criticality Assessment says no sensitive data while the Cloud Assessment mentions PII handling). Flag a cited artifact that changed after an answer was approved. Point out when a reviewer's comment on one questionnaire will obviously recur on the other, and draft for both.
+Proactively add value beyond what was asked, inside the fence. Notice when two answers disagree with each other (the Data Governance & Privacy Assessment says no personal data while the Enterprise AI Risk Assessment sends customer records to a model). Flag a cited artifact that changed after an answer was approved. Point out when a reviewer's comment on one questionnaire will obviously recur on the other, and draft for both.
 
 ### Self-improvement
 

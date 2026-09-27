@@ -1,0 +1,17 @@
+category,name,detail,status,started,completed,days,source
+project,falcon-portal,45 working days,complete,2026-07-06,2026-09-04,61,summary
+bmad stage,spec / PRD,_bmad-output/specs/SPEC.md,,2026-07-07,2026-07-09,3,git
+bmad stage,architecture,_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md,,2026-07-13,2026-07-23,11,git
+bmad stage,UX design,_bmad-output/planning-artifacts/ux-design.md,,2026-07-21,2026-07-24,4,git
+bmad stage,epics & stories,_bmad-output/planning-artifacts/epics.md,,2026-07-27,2026-07-28,2,git
+bmad stage,sprint status,_bmad-output/implementation-artifacts/sprint-status.yaml,,2026-07-29,2026-09-04,38,git
+agent,agent-jules,6 session logs,,2026-07-21,2026-08-25,36,sanctum
+agent,agent-scrooge,4 session logs,,2026-07-21,2026-09-04,46,sanctum
+epic,epic-1,3 stories,done,2026-07-29,2026-08-13,16,git
+story,1-1-sign-in,epic-1,done,2026-07-29,2026-07-31,3,git
+story,1-2-start-application,epic-1,done,2026-08-03,2026-08-07,5,git
+story,1-3-upload-documents,epic-1,done,2026-08-10,2026-08-13,4,git
+epic,epic-2,3 stories,done,2026-08-17,2026-09-04,19,git
+story,2-1-review-queue,epic-2,done,2026-08-17,2026-08-21,5,git
+story,2-2-approve-or-reject,epic-2,done,2026-08-24,2026-08-28,5,git
+story,2-3-notify-customer,epic-2,done,2026-08-31,2026-09-04,5,git

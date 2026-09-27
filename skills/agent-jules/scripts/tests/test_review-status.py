@@ -31,12 +31,12 @@ def load(name: str):
 review_status = load("review-status")
 docx_comments = load("docx-comments")
 
-REVIEW = """# CloudAssessment — governance review
+REVIEW = """# TechnicalArchitectureAssessment — governance review
 
 Legend: change `status:` yourself to approve.
 
 ## Q-1
-- source: question 1 "What cloud platform?" (CloudAssessment.docx)
+- source: question 1 "What cloud platform?" (TechnicalArchitectureAssessment.docx)
 - owner: Tech Lead
 - status: approved
 
@@ -44,7 +44,7 @@ Microsoft Azure, Southeast Asia.
 Note: I have derived this answer from ARCHITECTURE-SPINE.md Stack because the spine fixes the platform.
 
 ## Q-2
-- source: question 2 "Stack?" (CloudAssessment.docx)
+- source: question 2 "Stack?" (TechnicalArchitectureAssessment.docx)
 - owner: Tech lead
 - status: done
 
