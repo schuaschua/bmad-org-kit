@@ -1,17 +1,19 @@
 code: org
 name: "Org Kit"
-description: "Organisation layer for BMad Method projects: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides and Jules, the IT governance agent"
-module_version: 1.0.0
+description: "Organisation layer for BMad Method projects: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides, Jules (IT governance) and Scrooge McDuck (token usage)"
+module_version: 1.1.0
 default_selected: false
 module_greeting: >
   Org Kit is installed. The org standards baselines are in your standards folder and the blank
   governance questionnaires in your governance folder; extend them for this project.
-  Talk to Jules (IT Governance) when you are ready to answer the Criticality or Cloud Assessment.
+  Talk to Jules (IT Governance) when you are ready to answer the Criticality or Cloud Assessment,
+  and to Scrooge McDuck when you want to know where the tokens went.
   Run org-setup again at any time to reconfigure or after updating the kit.
 
 agents:
   # Flow style keeps the roster's keys off top-level-looking lines for line-based parsers.
   - { code: "agent-jules", name: "Jules", title: "IT Governance", icon: "🛡️", description: "Drafts, coaches and routes IT governance questionnaire answers (Criticality and Cloud Assessments) for the Product Lead and Tech Lead from the project's BMad artifacts, with a 2-hourly reviewer-comment watch." }
+  - { code: "agent-scrooge", name: "Scrooge McDuck", title: "Token Usage Accountant", icon: "💰", description: "Keeps the project's token ledger from its Claude Code logs, explains where the tokens went by story, step and activity, and suggests how to spend fewer." }
 
 jira_site:
   prompt: "Which Jira site does this project use?"
@@ -40,4 +42,9 @@ governance_folder:
 standards_folder:
   prompt: "Where do the project's engineering standards live?"
   default: "docs/standards"
+  result: "{project-root}/{value}"
+
+token_usage_folder:
+  prompt: "Where should Scrooge write the token usage ledger (gitignored)?"
+  default: "docs/token_usage"
   result: "{project-root}/{value}"
