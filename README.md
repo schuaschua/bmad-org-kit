@@ -6,10 +6,10 @@ A BMad module that adds the organisation layer to any BMad Method (`bmm`) projec
 - **Blank governance questionnaires** — `CriticalityAssessment.docx` and `CloudAssessment.docx`.
 - **BMad customization overrides** — the dev agent and the architecture, build, code-review and test-design workflows load the project's standards as persistent facts; epics-and-stories uses the org's hybrid story structure and offers to sync to the project's Jira.
 - **Scrooge McDuck (`agent-scrooge`), Token Usage Accountant** — counts every API call in the project's Claude Code logs, attributes it to a story (by the project's Jira key) or planning phase, a step and an activity, writes a gitignored ledger, and sternly audits it for savings. Background hooks keep the ledger current.
-- **Architecture diagrams (`arch-diagrams`)** — draws draw.io diagrams (C4 context, C4 containers, cloud deployment with Azure and Kubernetes icons, data flow with trust boundaries and PII/PHI, sequence for a named flow) from the project's architecture spine, spec and UX docs only. Every box and arrow cites its AD or section, gaps are listed rather than drawn, it challenges the architecture before drawing, and a drift check flags diagrams older than their spine.
+- **Leonardo da Vinci (`leonardo-da-vinci`), Architecture Diagrams** — draws draw.io diagrams (C4 context, C4 containers, cloud deployment with Azure and Kubernetes icons, data flow with trust boundaries and PII/PHI, sequence for a named flow) from the project's architecture spine, spec and UX docs only. Every box and arrow cites its AD or section, gaps are listed rather than drawn, it challenges the architecture before drawing, and a drift check flags diagrams older than their spine.
 - **Jules (`agent-jules`), IT Governance** — drafts, coaches and routes the Criticality and Cloud Assessment answers for the Product Lead and Tech Lead from the project's BMad artifacts, replies to reviewer comments and checks answers for drift. Jules also considers the regulatory documents of the region the solution is developed in, chosen at setup, citing the clause it relies on and checking each document's date before relying on it.
 
-Version 1.3.0 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
+Version 1.4.0 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
 
 ## Contents
 
@@ -18,7 +18,7 @@ skills/
   agent-jules/          # Jules: SKILL.md, sanctum templates, capability prompts, scripts (+ tests)
     assets/regions.toml # regional regulation registry: region -> regulator, web domains, source documents
   agent-scrooge/        # Scrooge: SKILL.md, capability prompts, token_report.py (+ tests)
-  arch-diagrams/        # SKILL.md, per-diagram-type references, stencil catalogues, spine/build/drift/stencil scripts (+ tests)
+  leonardo-da-vinci/    # SKILL.md, per-diagram-type references, stencil catalogues, spine/build/drift/stencil scripts (+ tests)
   org-setup/            # setup skill: standards, questionnaires, overrides, skill links, tooling check
     assets/
       module.yaml       # module identity, agent roster, config questions
@@ -34,7 +34,13 @@ skills/
 
 Prerequisites: BMad Method installed in the project (`_bmad/`), [`uv`](https://docs.astral.sh/uv/), and ideally the Atlassian MCP server (Jira sync) and the safe-docx MCP server (Jules's tracked changes and comment replies).
 
-1. Install the kit as a module with the BMad installer, from `https://github.com/darrel1234/bmad-org-kit`. The installer asks the questions below, writes them to `[modules.org]` in `_bmad/config.toml`, and registers Jules and the capabilities in `bmad-help`.
+1. Install the kit as a module with the BMad installer, from its GitHub repository, in a terminal in the project folder:
+
+   ```bash
+   npx bmad-method install --custom-source https://github.com/darrel1234/bmad-org-kit
+   ```
+
+   Pick the Org Kit (`org`) module and Claude Code as the tool. To install without prompts, add `--modules bmm,org --tools claude-code --yes --set org.jira_site=https://<site>.atlassian.net --set org.jira_project_key=<KEY>` (plus `--set org.<key>=<value>` for any other question below). The installer asks the questions below, writes them to `[modules.org]` in `_bmad/config.toml`, and registers Jules and the capabilities in `bmad-help`.
 2. Run the setup skill ("setup Org Kit"). It copies the standards and blank questionnaires, writes the `_bmad/custom` overrides and checks the tooling. Nothing the project already has is overwritten.
 3. The questions (asked by the installer; `org-setup` asks them itself only when the kit was added without the installer):
 
@@ -46,7 +52,7 @@ Prerequisites: BMad Method installed in the project (`_bmad/`), [`uv`](https://d
    | `governance_folder` | where the questionnaires live | `{project-root}/docs/governance` |
    | `standards_folder` | where the standards live | `{project-root}/docs/standards` |
    | `token_usage_folder` | where Scrooge writes the token ledger (gitignored) | `{project-root}/docs/token_usage` |
-   | `diagrams_folder` | where arch-diagrams writes `.drawio` files, their models and exports | `{project-root}/docs/architecture/diagrams` |
+   | `diagrams_folder` | where Leonardo da Vinci writes `.drawio` files, their models and exports | `{project-root}/docs/architecture/diagrams` |
    | `region` | region the solution is developed in (`none`, `uae`); picks the regulatory documents Jules considers | `none` |
 
 4. Talk to Jules. On first activation Jules builds its sanctum at `_bmad/memory/agent-jules/` and picks up the governance and standards folders from the `org` config.
@@ -63,16 +69,16 @@ Prerequisites: BMad Method installed in the project (`_bmad/`), [`uv`](https://d
 
 Setup runs a dry run first and shows you what it would change.
 
-## Architecture diagrams
+## Architecture diagrams (Leonardo da Vinci)
 
-Ask for a diagram ("draw the deployment diagram", "C4 containers", "sequence diagram for one chat turn"). The skill reads the spine at `_bmad-output/planning-artifacts/architecture/<name>/ARCHITECTURE-SPINE.md` with the spec and UX docs, and nothing else.
+Ask Leonardo for a diagram ("draw the deployment diagram", "C4 containers", "sequence diagram for one chat turn"). The skill reads the spine at `_bmad-output/planning-artifacts/architecture/<name>/ARCHITECTURE-SPINE.md` with the spec and UX docs, and nothing else.
 
 - **Challenge first.** Before drawing it puts the gaps, contradictions and risky choices to you, most consequential first. Each answer becomes proposed AD wording, which it adds to the spine only once you approve the exact text, so the diagram can cite it.
 - **Cited, not guessed.** Each diagram has a `<name>.model.json` beside its `.drawio`, listing every element with its citation and the gaps. The build refuses an element whose citation doesn't resolve to a real AD or source section, and a gap is listed on the page, never drawn.
 - **Org drawing rules** (deployment): a service that hosts workloads, such as AKS, is a box with its icon; workloads inside it use a container icon; data services sit outside compute clusters in their own subnet; multi-region is one set of boxes per region (two when the spine doesn't count them) inside one enclosing box.
-- **Icons** come from draw.io's own shape libraries: `skills/arch-diagrams/assets/stencils/azure.json` (645 Azure stencils) and `kubernetes.json`. Another provider is one command away: `uv run skills/arch-diagrams/scripts/stencils.py extract --index <draw.io search-index.json> --provider aws --prefix mxgraph.aws4.`.
+- **Icons** come from draw.io's own shape libraries: `skills/leonardo-da-vinci/assets/stencils/azure.json` (645 Azure stencils) and `kubernetes.json`. Another provider is one command away: `uv run skills/leonardo-da-vinci/scripts/stencils.py extract --index <draw.io search-index.json> --provider aws --prefix mxgraph.aws4.`.
 - **Paper.** It asks for size and orientation (default A4 portrait) and fits the diagram to one page or two.
-- **Stamped and checked for drift.** Each file records the spine's commit (or date) and a hash of every AD. `uv run skills/arch-diagrams/scripts/diagram-drift.py <project-root>` names the ADs that changed and exits 1 when a diagram is stale, so it also works as a CI or pre-commit check.
+- **Stamped and checked for drift.** Each file records the spine's commit (or date) and a hash of every AD. `uv run skills/leonardo-da-vinci/scripts/diagram-drift.py <project-root>` names the ADs that changed and exits 1 when a diagram is stale, so it also works as a CI or pre-commit check.
 - **Exports** (PNG, SVG) need draw.io desktop; the draw.io MCP server (`claude mcp add drawio -- npx -y @drawio/mcp`) adds an in-browser preview. Neither is required.
 
 Jules may cite a current diagram in a Cloud Assessment answer, beside the AD it was drawn from.
@@ -105,8 +111,8 @@ To add a region, add a `[regions.<code>]` table to `skills/agent-jules/assets/re
 | SC | agent-scrooge | What a story or phase cost |
 | CD | agent-scrooge | Cost drivers and savings audit |
 | CL | agent-scrooge | Story cost line for PRs and Jira |
-| DG | arch-diagrams | Draw an architecture diagram |
-| DD | arch-diagrams | Diagram drift check |
+| DG | leonardo-da-vinci | Draw an architecture diagram |
+| DD | leonardo-da-vinci | Diagram drift check |
 
 ## Updating
 
@@ -121,7 +127,7 @@ To add a region, add a `[regions.<code>]` table to `skills/agent-jules/assets/re
 uv run skills/org-setup/scripts/tests/test-install-org-assets.py
 for t in skills/agent-jules/scripts/tests/*.py; do uv run "$t"; done
 uv run --with pytest pytest -q skills/agent-scrooge/scripts/tests
-for t in skills/arch-diagrams/scripts/tests/test_*.py; do uv run "$t"; done
+for t in skills/leonardo-da-vinci/scripts/tests/test_*.py; do uv run "$t"; done
 ```
 
 Validate the module with the BMad Module Builder's Validate Module (VM) path on `skills/`.

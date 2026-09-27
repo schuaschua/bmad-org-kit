@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0 — 2026-09-27
+
+### Changed
+
+- **`arch-diagrams` is now Leonardo da Vinci (`leonardo-da-vinci`).** Same skill, new name: ask for "Leonardo" or any diagram. The `bmad-help` entries (DG, DD), the plugin manifest, org-setup and Jules's diagram citation all use the new name. Diagrams drawn with 1.3.0 keep working, including their drift check.
+- **Upgrading a project from 1.3.0:** update the kit through the BMad installer (it installs `leonardo-da-vinci`), then delete the old `.claude/skills/arch-diagrams` folder if it's still there.
+
+### Fixed
+
+- `org-setup` no longer lists every skill in `.claude/skills` (BMad's included) as the kit's when the BMad installer has already installed the kit there; it reports the skills as installed in place.
+
+### Docs
+
+- README: the verified install command, `npx bmad-method install --custom-source https://github.com/darrel1234/bmad-org-kit`, with the flags for a prompt-free install.
+
 ## 1.3.0 — 2026-09-27
 
 ### Added

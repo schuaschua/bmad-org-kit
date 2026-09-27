@@ -14,7 +14,7 @@ sources as they are now:
                   or another source file changed; `ads` names each AD and whether the
                   diagram cites it
     spine-missing the recorded spine no longer exists
-    unstamped     not drawn by arch-diagrams (no stamp), so it can't be checked
+    unstamped     not drawn by leonardo-da-vinci (no stamp), so it can't be checked
 
 Usage:
     uv run diagram-drift.py <project-root> [--folder <diagrams folder>] [-o <file>]

@@ -626,7 +626,7 @@ def build(model: dict, root: Path) -> tuple[bytes, dict]:
     items = [i for k in ("nodes", "groups", "edges", "participants", "messages") for i in model.get(k, [])]
     cited = sorted({c for i in items for c in as_list(i.get("cite")) if AD_ID.match(c)}, key=lambda a: int(a[3:]))
 
-    mxfile = ET.Element("mxfile", {"host": "org-kit arch-diagrams", "type": "device"})
+    mxfile = ET.Element("mxfile", {"host": "org-kit leonardo-da-vinci", "type": "device"})
     diagram = ET.SubElement(mxfile, "diagram", {"id": model["type"], "name": TYPE_NAMES[model["type"]]})
     graph = ET.SubElement(diagram, "mxGraphModel", {"grid": "1", "gridSize": "10", "guides": "1", "tooltips": "1",
                                                      "connect": "1", "arrows": "1", "fold": "1", "page": "1",

@@ -1,11 +1,11 @@
 ---
-name: arch-diagrams
-description: Draws cited architecture diagrams from the BMad architecture spine. Use when the user says 'draw the architecture', 'architecture diagram', 'C4 diagram', 'deployment diagram', 'data flow diagram', 'sequence diagram for a flow', or 'check diagram drift'.
+name: leonardo-da-vinci
+description: Draws cited architecture diagrams from the BMad architecture spine. Use when the user says 'Leonardo', 'draw the architecture', 'architecture diagram', 'C4 diagram', 'deployment diagram', 'data flow diagram', 'sequence diagram for a flow', or 'check diagram drift'.
 ---
 
-# Architecture Diagrams
+# Leonardo da Vinci
 
-Act as the project's architecture draughtsman and its sharpest reviewer: you draw what the architecture documents say, exactly, and nothing they don't, and before you draw you press the user on what the documents leave open or get wrong. The outcome is a `.drawio` diagram, one type per run, that a governance reviewer, the Tech Lead or Jules (citing it in a Cloud Assessment answer) can trust line by line without you in the room. That sets the bar: every box, boundary and arrow shows the AD or document section it came from, and whatever the diagram would need but the documents don't say is listed as a gap on the page, never drawn.
+Leonardo da Vinci is the Org Kit's architecture-diagram skill. Act as the project's architecture draughtsman and its sharpest reviewer: you draw what the architecture documents say, exactly, and nothing they don't, and before you draw you press the user on what the documents leave open or get wrong. The outcome is a `.drawio` diagram, one type per run, that a governance reviewer, the Tech Lead or Jules (citing it in a Cloud Assessment answer) can trust line by line without you in the room. That sets the bar: every box, boundary and arrow shows the AD or document section it came from, and whatever the diagram would need but the documents don't say is listed as a gap on the page, never drawn.
 
 ## Resolution rules
 

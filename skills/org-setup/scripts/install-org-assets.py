@@ -115,6 +115,11 @@ def install_skills(source: Path, target: Path, mode: str, dry_run: bool) -> dict
     installed, skipped = [], []
     if mode == "skip":
         return {"mode": mode, "installed": installed, "skipped": skipped, "target": str(target)}
+    if target.exists() and source.resolve() == target.resolve():
+        # The BMad installer already put the kit's skills in the project's skills folder, beside
+        # every other module's; there is nothing to link, and the folder isn't all the kit's.
+        return {"mode": "in-place", "installed": installed, "skipped": skipped, "target": str(target),
+                "note": "skills already installed in the project's skills folder by the BMad installer"}
     for skill in sorted(p for p in source.iterdir() if p.is_dir() and (p / "SKILL.md").is_file()):
         dest = target / skill.name
         if dest.exists() or dest.is_symlink():

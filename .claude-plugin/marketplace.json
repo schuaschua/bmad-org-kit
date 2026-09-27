@@ -19,15 +19,15 @@
     {
       "name": "org",
       "source": "./",
-      "description": "Org Kit: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides, Jules (IT governance), Scrooge McDuck (token usage) and cited architecture diagrams (draw.io) for BMad Method projects.",
-      "version": "1.3.0",
+      "description": "Org Kit: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides, Jules (IT governance), Scrooge McDuck (token usage) and Leonardo da Vinci (cited draw.io architecture diagrams) for BMad Method projects.",
+      "version": "1.4.0",
       "author": {
         "name": "darrel1234"
       },
       "skills": [
         "./skills/agent-jules",
         "./skills/agent-scrooge",
-        "./skills/arch-diagrams",
+        "./skills/leonardo-da-vinci",
         "./skills/org-setup"
       ]
     }

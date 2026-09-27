@@ -1,4 +1,4 @@
-"""Shared fixture for the arch-diagrams script tests: a throwaway project with a spine and a spec."""
+"""Shared fixture for the leonardo-da-vinci script tests: a throwaway project with a spine and a spec."""
 
 from __future__ import annotations
 

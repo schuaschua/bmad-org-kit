@@ -85,6 +85,16 @@ class InstallOrgAssetsTests(unittest.TestCase):
         self.assertFalse((self.root / ".gitignore").exists())
         self.assertEqual(len(out["standards"]["copied"]), 4)
 
+    def test_skills_already_in_the_project_folder_are_left_in_place(self):
+        skills = self.root / ".claude" / "skills"
+        for name in ("org-setup", "bmad-help"):
+            (skills / name).mkdir(parents=True)
+            (skills / name / "SKILL.md").write_text("---\nname: x\n---\n", encoding="utf-8")
+        args = [a for a in self.base_args() if a not in ("--skills-mode", "skip")]
+        code, out = run(*args, "--skills-source", str(skills))
+        self.assertEqual(code, 0, out)
+        self.assertEqual((out["skills"]["mode"], out["skills"]["installed"], out["skills"]["skipped"]), ("in-place", [], []))
+
     def test_links_skills_once(self):
         args = [a for a in self.base_args() if a not in ("--skills-mode", "skip")]
         code, out = run(*args)
