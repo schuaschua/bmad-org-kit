@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.0 — 2026-09-27
+
+### Added
+
+- **`arch-diagrams` skill** (built with BMad Builder's `bmad-workflow-builder`): draws cited draw.io diagrams from the architecture spine, spec and UX docs only: C4 system context, C4 containers, cloud deployment, data flow with trust boundaries and PII/PHI, and a sequence for a named flow.
+  - Challenges the user on gaps, contradictions and risky choices before drawing; approved answers are added to the spine as AD text.
+  - Every element cites its AD or section; `build-drawio.py` validates each citation against the spine and sources before drawing, and gaps are listed on the page, never drawn.
+  - Diagram models (`<name>.model.json`) sit beside the `.drawio` files; layered layout; page size and orientation asked (default A4 portrait), fitted to one or two pages.
+  - Deployment drawing rules: workload hosts (AKS) as boxes with their icon, container icons for workloads, data services in their own subnet outside clusters, multi-region as one set of boxes per region inside one enclosing box.
+  - Stencil catalogues from draw.io's shape index: Azure (645) and Kubernetes (39); more providers via `stencils.py extract`.
+  - Stamp (spine commit or date, AD hashes) on every file; `diagram-drift.py` names the ADs that changed and exits 1 when a diagram is stale.
+  - PNG/SVG exports with draw.io desktop; optional previews with the draw.io MCP server.
+- **`diagrams_folder`** setting (default `docs/architecture/diagrams`); `org-setup` links the new skill, lists it in `bmad-help` (DG, DD) and checks for draw.io desktop and the draw.io MCP server.
+- **Jules** may cite a current architecture diagram in a Cloud Assessment answer, beside the AD it was drawn from.
+
 ## 1.2.0 — 2026-09-27
 
 ### Added

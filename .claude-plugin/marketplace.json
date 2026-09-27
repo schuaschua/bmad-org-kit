@@ -11,20 +11,23 @@
     "governance",
     "standards",
     "jira",
-    "token-usage"
+    "token-usage",
+    "architecture",
+    "drawio"
   ],
   "plugins": [
     {
       "name": "org",
       "source": "./",
-      "description": "Org Kit: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides, Jules (IT governance) and Scrooge McDuck (token usage) for BMad Method projects.",
-      "version": "1.2.0",
+      "description": "Org Kit: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides, Jules (IT governance), Scrooge McDuck (token usage) and cited architecture diagrams (draw.io) for BMad Method projects.",
+      "version": "1.3.0",
       "author": {
         "name": "darrel1234"
       },
       "skills": [
         "./skills/agent-jules",
         "./skills/agent-scrooge",
+        "./skills/arch-diagrams",
         "./skills/org-setup"
       ]
     }
