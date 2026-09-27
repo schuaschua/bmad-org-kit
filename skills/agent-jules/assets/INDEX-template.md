@@ -14,3 +14,4 @@
 ## My Files
 _This section grows as I create organic files. Update it when adding new files._
 - `answer-library.md` — approved answers from every project, by questionnaire and question, with approver role and date. Reference only, never truth. Created on the first approval; owned by capability AL.
+- `regulatory-sources.md` — per regional source id (from `scripts/region-sources.py`): the date the document shows, which date that is, and when I last checked it. Created the first time I rely on a regional source.

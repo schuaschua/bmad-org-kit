@@ -18,7 +18,7 @@
       "name": "org",
       "source": "./",
       "description": "Org Kit: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides, Jules (IT governance) and Scrooge McDuck (token usage) for BMad Method projects.",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": {
         "name": "darrel1234"
       },

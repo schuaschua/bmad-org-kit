@@ -15,9 +15,9 @@ What it does add (see **Org Kit Extensions**): the org standards baselines, the 
 
 ## On Activation
 
-1. Read `./assets/module.yaml` for the variable definitions (`jira_site`, `jira_project_key`, `confluence_wiki_url`, `governance_folder`, `standards_folder`, `token_usage_folder`).
+1. Read `./assets/module.yaml` for the variable definitions (`jira_site`, `jira_project_key`, `confluence_wiki_url`, `governance_folder`, `standards_folder`, `token_usage_folder`, `region`).
 2. Read the values from `{project-root}/_bmad/config.toml`, section `[modules.org]`, then apply any overrides from `{project-root}/_bmad/custom/config.toml` and `{project-root}/_bmad/custom/config.user.toml` (same section; later files win).
-3. If `[modules.org]` is missing, the kit was not installed through the BMad installer. Tell the user that registration (Jules in the roster and `bmad-help`) needs the installer, and offer to continue with the project files only: ask for the six values (show the `module.yaml` defaults and examples, re-ask on a failed `regex`, store a declined optional value as an empty string) and use them for this run. Do not write them to any config file.
+3. If `[modules.org]` is missing, the kit was not installed through the BMad installer. Tell the user that registration (Jules in the roster and `bmad-help`) needs the installer, and offer to continue with the project files only: ask for the seven values (show the `module.yaml` defaults and examples, offer only the `single-select` choices for `region`, re-ask on a failed `regex`, store a declined optional value as an empty string) and use them for this run. Do not write them to any config file.
 
 If the user passes arguments (e.g. `accept all defaults`, `--headless`, inline values), use them in place of prompting, and still show the confirmation summary.
 
@@ -56,9 +56,19 @@ Check, and for anything missing tell the user what it is for and how to add it; 
 - **Atlassian MCP server** — used by the `bmad-create-epics-and-stories` Jira sync and for the Confluence wiki. Available when `mcp__atlassian__*` tools are in this session. If absent, suggest adding Atlassian's remote MCP server (`claude mcp add --transport http atlassian https://mcp.atlassian.com/v1/mcp`, then authenticate) and confirm `{jira_site}` is one of its accessible sites.
 - **safe-docx MCP server** — Jules uses it to write tracked changes and comment replies in the questionnaires. Available when `mcp__safe-docx__*` tools are in this session. If it is configured but failed to connect, say so rather than calling it missing. Without it Jules can still read comments and write plain answer cells.
 
-### 3. Report
+### 3. Region
 
-Add to the Confirm summary: files copied and skipped per folder, override files written and those waiting for a manual merge, skills linked or copied, the `.gitignore` entry and hooks added or skipped, and any tooling gaps with their fix.
+The `region` value tells Jules which regulator's documents to consider (the registry is `../agent-jules/assets/regions.toml`). Show what it resolves to:
+
+```bash
+uv run ../agent-jules/scripts/region-sources.py "{project-root}" [--region "{region}"]
+```
+
+Pass `--region` only when the values were entered for this run; otherwise the script reads the configured value itself. List the region's regulator and each source's title and URL. A region the registry doesn't know exits non-zero with the known codes: surface them and ask for the region again. To change the region later, the user reconfigures the kit (or sets `region` under `[modules.org]` in `_bmad/custom/config.toml`); Jules reads the current value every time, so nothing else needs updating.
+
+### 4. Report
+
+Add to the Confirm summary: files copied and skipped per folder, override files written and those waiting for a manual merge, skills linked or copied, the region and its source documents, the `.gitignore` entry and hooks added or skipped, and any tooling gaps with their fix.
 
 ## Confirm
 

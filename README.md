@@ -6,15 +6,16 @@ A BMad module that adds the organisation layer to any BMad Method (`bmm`) projec
 - **Blank governance questionnaires** — `CriticalityAssessment.docx` and `CloudAssessment.docx`.
 - **BMad customization overrides** — the dev agent and the architecture, build, code-review and test-design workflows load the project's standards as persistent facts; epics-and-stories uses the org's hybrid story structure and offers to sync to the project's Jira.
 - **Scrooge McDuck (`agent-scrooge`), Token Usage Accountant** — counts every API call in the project's Claude Code logs, attributes it to a story (by the project's Jira key) or planning phase, a step and an activity, writes a gitignored ledger, and sternly audits it for savings. Background hooks keep the ledger current.
-- **Jules (`agent-jules`), IT Governance** — drafts, coaches and routes the Criticality and Cloud Assessment answers for the Product Lead and Tech Lead from the project's BMad artifacts, replies to reviewer comments and checks answers for drift.
+- **Jules (`agent-jules`), IT Governance** — drafts, coaches and routes the Criticality and Cloud Assessment answers for the Product Lead and Tech Lead from the project's BMad artifacts, replies to reviewer comments and checks answers for drift. Jules also considers the regulatory documents of the region the solution is developed in, chosen at setup, citing the clause it relies on and checking each document's date before relying on it.
 
-Version 1.1.0. Expansion of BMad Method.
+Version 1.2.0 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
 
 ## Contents
 
 ```text
 skills/
   agent-jules/          # Jules: SKILL.md, sanctum templates, capability prompts, scripts (+ tests)
+    assets/regions.toml # regional regulation registry: region -> regulator, web domains, source documents
   agent-scrooge/        # Scrooge: SKILL.md, capability prompts, token_report.py (+ tests)
   org-setup/            # setup skill: standards, questionnaires, overrides, skill links, tooling check
     assets/
@@ -43,6 +44,7 @@ Prerequisites: BMad Method installed in the project (`_bmad/`), [`uv`](https://d
    | `governance_folder` | where the questionnaires live | `{project-root}/docs/governance` |
    | `standards_folder` | where the standards live | `{project-root}/docs/standards` |
    | `token_usage_folder` | where Scrooge writes the token ledger (gitignored) | `{project-root}/docs/token_usage` |
+   | `region` | region the solution is developed in (`none`, `uae`); picks the regulatory documents Jules considers | `none` |
 
 4. Talk to Jules. On first activation Jules builds its sanctum at `_bmad/memory/agent-jules/` and picks up the governance and standards folders from the `org` config.
 
@@ -53,9 +55,23 @@ Prerequisites: BMad Method installed in the project (`_bmad/`), [`uv`](https://d
 3. Writes `_bmad/custom/<skill>.toml` overrides only where no file exists yet. For an existing file it shows the lines to add so you can merge them yourself.
 4. Links the kit's skills into `.claude/skills/` (relative symlinks; `copy` or `skip` on request).
 5. Adds the token ledger folder to `.gitignore` and Scrooge's background refresh hooks to `.claude/settings.local.json` (skip with `--no-hooks`).
-6. Checks for `uv`, the Atlassian MCP server and the safe-docx MCP server, and says how to add any that are missing.
+6. Shows the chosen region and its regulatory documents.
+7. Checks for `uv`, the Atlassian MCP server and the safe-docx MCP server, and says how to add any that are missing.
 
 Setup runs a dry run first and shows you what it would change.
+
+## Regions
+
+The `region` setting points Jules at the regulator's documents for where the solution is developed. Jules reads the setting fresh each session (`uv run skills/agent-jules/scripts/region-sources.py <project-root>`), so changing it takes effect at once: rerun `org-setup`, or set `region` under `[modules.org]` in `_bmad/custom/config.toml`.
+
+| Region | Regulator | Documents |
+| --- | --- | --- |
+| `none` | — | none |
+| `uae` | Central Bank of the UAE | [Guidelines for Financial Institutions Adopting Enabling Technologies](https://rulebook.centralbank.ae/en/rulebook/guidelines-financial-institutions-adopting-enabling-technologies) (every solution); [Guidance Note on Consumer Protection and Responsible Adoption and Use of Artificial Intelligence](https://rulebook.centralbank.ae/en/rulebook/guidance-note-consumer-protection-and-responsible-adoption-and-use-artificial-intelligence) (solutions that use AI) |
+
+When a question touches something a source governs, Jules reads the document on the regulator's own site, cites the clause with its URL and dates in the reasoning note, and keeps the regulator's requirement apart from what the project's artifacts commit to; it never claims the project complies. It records each document's date in its sanctum (`regulatory-sources.md`) and re-checks it on first use each session; a changed date is reported to you and flags the answers citing it for a drift check.
+
+To add a region, add a `[regions.<code>]` table to `skills/agent-jules/assets/regions.toml` and the same code to the `region` choices in `skills/org-setup/assets/module.yaml`; the tests check the two match.
 
 ## Capabilities
 
@@ -77,7 +93,7 @@ Setup runs a dry run first and shows you what it would change.
 
 - Update the kit through the BMad installer (it refreshes the `org` config and help entries), then run `org-setup` again for any new project files.
 - Standards, questionnaires and overrides that already exist in the project are left alone, so project extensions survive. To adopt a newer baseline, diff your copy against `skills/org-setup/assets/standards/` and merge by hand; each baseline carries its version in its header.
-- Jules's sanctum (`_bmad/memory/agent-jules/`) is never touched by an update. Sanctum files are created at First Breath from the templates, so template changes reach an existing sanctum only by hand.
+- Jules's sanctum (`_bmad/memory/agent-jules/`) is never touched by an update. Sanctum files and its copies of the capability prompts are created at First Breath, so template and prompt changes reach an existing sanctum only by hand; CHANGELOG.md lists what to carry over for each release.
 - Scrooge's project data (`_bmad/memory/agent-scrooge/stories.json`, `savings.json`) is never touched by an update.
 
 ## Developing the kit
