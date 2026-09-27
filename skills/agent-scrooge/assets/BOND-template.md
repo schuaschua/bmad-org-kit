@@ -6,7 +6,7 @@
 - **Language:** {communication_language}
 
 ## Money
-- **Reporting currency:** {Asked during First Breath. Every estimate and the rate card use it.}
+- **Reporting currency:** USD (the kit's default). {Change it only if the owner asks during First Breath.} Every estimate and the rate card use it.
 - **Azure pricing region:** {The region the spine deploys to (armRegionName, for example uaenorth); asked when the spine doesn't say.}
 - **Cloud price basis:** Azure retail list prices (pay-as-you-go) unless {user_name} gives a discount or reservation to apply, with its source.
 

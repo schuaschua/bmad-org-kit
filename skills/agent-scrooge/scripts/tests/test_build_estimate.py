@@ -233,3 +233,13 @@ def test_close_out_memo_currency_and_unpriced(project, capsys):
     write_model(project, model(currency="AED", cloud_currency="USD", fx_rate=3.6725, fx_source="t", close_out={}))
     code, out = run(project, "demo.estimate.json", "--check", capsys=capsys)
     assert code == 1 and any("close_out.fx_rate" in e for e in out["errors"])
+
+
+def test_shipped_example_still_builds(capsys):
+    example = Path(__file__).resolve().parents[2] / "assets" / "examples" / "falcon-portal"
+    code = build_estimate.main([str(example), "falcon-portal.estimate.json", "--check"])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 0, out
+    assert out["figures"]["currency"] == "USD"
+    assert out["figures"]["grand_total"]["total"] == 462615.59
+    assert out["figures"]["claude"]["calls"] == 2614

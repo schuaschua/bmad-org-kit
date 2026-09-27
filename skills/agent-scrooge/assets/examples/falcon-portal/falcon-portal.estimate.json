@@ -1,0 +1,333 @@
+{
+  "name": "falcon-portal",
+  "title": "Falcon Portal cost estimate (synthetic sample)",
+  "currency": "USD",
+  "pricing_region": "uaenorth",
+  "price_date": "2026-09-28",
+  "assumptions": {
+    "delivery_days": 84,
+    "working_days_per_month": 21,
+    "hours_per_month": 730,
+    "run_months": 12,
+    "contingency_pct": 10
+  },
+  "environments": [
+    {
+      "name": "Dev",
+      "items": [
+        {
+          "component": "AKS nodes",
+          "service": "Virtual Machines",
+          "sku": "Standard_D4s_v5",
+          "unit": "1 Hour",
+          "unit_price": 0.235,
+          "quantity": 2,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-1",
+          "price_source": "Azure Retail Prices API, Virtual Machines Dsv5 Series / D4s v5, uaenorth, USD per 1 Hour, meterId 75a8da05-74dd-5b32-bb86-4f5cc74cdb60, fetched 2026-09-28",
+          "note": "Dev nodes stopped outside working hours",
+          "usage": 220
+        },
+        {
+          "component": "Customer database",
+          "service": "SQL Database",
+          "sku": "General Purpose Gen5, 2 vCore",
+          "unit": "1 vCore Hour",
+          "unit_price": 0.253,
+          "quantity": 2,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-2",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": ""
+        },
+        {
+          "component": "Document storage",
+          "service": "Storage",
+          "sku": "Blob Hot LRS",
+          "unit": "1 GB/Month",
+          "unit_price": 0.019,
+          "quantity": 50,
+          "cite": "assumption: 50 GB of test documents",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        },
+        {
+          "component": "Secrets",
+          "service": "Key Vault",
+          "sku": "Standard",
+          "unit": "10K operations",
+          "unit_price": 0.03,
+          "quantity": 30,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-5",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        },
+        {
+          "component": "Logs and metrics",
+          "service": "Log Analytics",
+          "sku": "Pay-as-you-go",
+          "unit": "1 GB",
+          "unit_price": 2.76,
+          "quantity": 5,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-5",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        }
+      ]
+    },
+    {
+      "name": "Test",
+      "items": [
+        {
+          "component": "AKS nodes",
+          "service": "Virtual Machines",
+          "sku": "Standard_D4s_v5",
+          "unit": "1 Hour",
+          "unit_price": 0.235,
+          "quantity": 2,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-1",
+          "price_source": "Azure Retail Prices API, Virtual Machines Dsv5 Series / D4s v5, uaenorth, USD per 1 Hour, meterId 75a8da05-74dd-5b32-bb86-4f5cc74cdb60, fetched 2026-09-28",
+          "note": "",
+          "usage": "hours"
+        },
+        {
+          "component": "Customer database",
+          "service": "SQL Database",
+          "sku": "General Purpose Gen5, 2 vCore",
+          "unit": "1 vCore Hour",
+          "unit_price": 0.253,
+          "quantity": 2,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-2",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": ""
+        },
+        {
+          "component": "Document storage",
+          "service": "Storage",
+          "sku": "Blob Hot LRS",
+          "unit": "1 GB/Month",
+          "unit_price": 0.019,
+          "quantity": 50,
+          "cite": "assumption: 50 GB of test documents",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        },
+        {
+          "component": "Secrets",
+          "service": "Key Vault",
+          "sku": "Standard",
+          "unit": "10K operations",
+          "unit_price": 0.03,
+          "quantity": 30,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-5",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        },
+        {
+          "component": "Logs and metrics",
+          "service": "Log Analytics",
+          "sku": "Pay-as-you-go",
+          "unit": "1 GB",
+          "unit_price": 2.76,
+          "quantity": 5,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-5",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        },
+        {
+          "component": "Edge",
+          "service": "Azure Front Door Service",
+          "sku": "Standard base fee",
+          "unit": "1 Month",
+          "unit_price": 35.0,
+          "quantity": 1,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-4",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        }
+      ],
+      "delivery_months": 2
+    },
+    {
+      "name": "Prod",
+      "items": [
+        {
+          "component": "AKS nodes",
+          "service": "Virtual Machines",
+          "sku": "Standard_D4s_v5",
+          "unit": "1 Hour",
+          "unit_price": 0.235,
+          "quantity": 3,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-1",
+          "price_source": "Azure Retail Prices API, Virtual Machines Dsv5 Series / D4s v5, uaenorth, USD per 1 Hour, meterId 75a8da05-74dd-5b32-bb86-4f5cc74cdb60, fetched 2026-09-28",
+          "note": "",
+          "usage": "hours"
+        },
+        {
+          "component": "Customer database",
+          "service": "SQL Database",
+          "sku": "General Purpose Gen5, 4 vCore",
+          "unit": "1 vCore Hour",
+          "unit_price": 0.253,
+          "quantity": 4,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-2",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": ""
+        },
+        {
+          "component": "Document storage",
+          "service": "Storage",
+          "sku": "Blob Hot LRS",
+          "unit": "1 GB/Month",
+          "unit_price": 0.019,
+          "quantity": 500,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-3",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        },
+        {
+          "component": "Secrets",
+          "service": "Key Vault",
+          "sku": "Standard",
+          "unit": "10K operations",
+          "unit_price": 0.03,
+          "quantity": 30,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-5",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        },
+        {
+          "component": "Logs and metrics",
+          "service": "Log Analytics",
+          "sku": "Pay-as-you-go",
+          "unit": "1 GB",
+          "unit_price": 2.76,
+          "quantity": 30,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-5",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        },
+        {
+          "component": "Edge",
+          "service": "Azure Front Door Service",
+          "sku": "Standard base fee",
+          "unit": "1 Month",
+          "unit_price": 35.0,
+          "quantity": 1,
+          "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-4",
+          "price_source": "Synthetic sample price (not looked up)",
+          "note": "",
+          "usage": 1
+        }
+      ],
+      "delivery_months": 1
+    }
+  ],
+  "team": [
+    {
+      "role": "Project Manager",
+      "employees": 1,
+      "allocation": 0.5,
+      "cite": "owner: Delivery Manager, 2026-09-28"
+    },
+    {
+      "role": "Solution Architect",
+      "employees": 1,
+      "days": 20,
+      "cite": "owner: Delivery Manager, 2026-09-28"
+    },
+    {
+      "role": "Tech Lead",
+      "employees": 1,
+      "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-1"
+    },
+    {
+      "role": "Developer",
+      "employees": 3,
+      "cite": "_bmad-output/specs/SPEC.md 3 Users"
+    },
+    {
+      "role": "QA Engineer",
+      "employees": 1,
+      "cite": "owner: Delivery Manager, 2026-09-28"
+    },
+    {
+      "role": "DevOps Engineer",
+      "employees": 1,
+      "allocation": 0.5,
+      "cite": "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md AD-1"
+    }
+  ],
+  "other_costs": [
+    {
+      "item": "Penetration test",
+      "cost": 12000,
+      "cite": "owner: Security Lead, 2026-09-28"
+    },
+    {
+      "item": "GitHub Enterprise seats (12 months)",
+      "cost": 8700,
+      "cite": "assumption: 7 seats at list price"
+    }
+  ],
+  "gaps": [
+    "Disaster recovery: the spine does not say whether Prod has a second region.",
+    "Azure SQL backup retention beyond the default is not stated."
+  ],
+  "close_out": {
+    "in_totals": false,
+    "ledger": "token_usage/claude_usage.csv",
+    "timeline": "token_usage/project_timeline.csv",
+    "prices": "claude-prices.json"
+  },
+  "rate_card": {
+    "currency": "USD",
+    "updated": "2026-09-28",
+    "source": "Synthetic sample rates, not a real rate card",
+    "roles": [
+      {
+        "role": "Project Manager",
+        "day_rate": 760
+      },
+      {
+        "role": "Solution Architect",
+        "day_rate": 950
+      },
+      {
+        "role": "Tech Lead",
+        "day_rate": 870
+      },
+      {
+        "role": "Developer",
+        "day_rate": 650
+      },
+      {
+        "role": "QA Engineer",
+        "day_rate": 545
+      },
+      {
+        "role": "DevOps Engineer",
+        "day_rate": 710
+      }
+    ]
+  },
+  "stamp": {
+    "built": "2026-09-28T01:50:11",
+    "files": {
+      "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md": "888bd47cdcac5428251a930fa8a6839821f5989c80b9b54f4689896b0ab68829",
+      "_bmad-output/specs/SPEC.md": "a9e8b1197d6758f3ea44226bee501aa62e2cc33ca6fee30f9915cf3478d447ef",
+      "token_usage/claude_usage.csv": "edc93724cf8647054365c16a65a94f28d17fc6462feba94a8eef6c076136b023",
+      "claude-prices.json": "0dcde61aa11063535136142216e4b4fab5d61c3bbb76918a0170db98a18ec51c",
+      "token_usage/project_timeline.csv": "4ea59cc7407f61b596f34554694d847dac55efe2836dccadc17d73bf7b74507d"
+    },
+    "workbook_mtime": 1790531411.1910331
+  }
+}

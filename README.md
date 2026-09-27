@@ -125,6 +125,8 @@ Ask Scrooge for a cost estimate ("what will this cost to build and run?", "price
 - **Close-out.** At the end of the project Scrooge records how long it took: each BMad stage (from git), each custom agent (from its sanctum), each epic and story (from the sprint status's git history), start to finish in calendar and working days. He adds the total Claude API calls, costed at the list prices read from Anthropic's pricing page, as the Claude Usage, Claude Prices and Project Timeline sheets and a line in the cost summary (a memo when Claude Code was on a subscription).
 - **Dashboards.** Every data range is a named Excel table (`tblCostSummary`, `tblTeam`, `tblEnv<name>`, `tblClaudeUsage`, `tblTimeline` ...) for Power BI or Excel Online. Power BI reads the values Excel last saved, so open and save a fresh build once, or use the plain-value CSVs: `<name>.facts.csv` beside the workbook, and `claude_usage.csv` and `project_timeline.csv` in the token usage folder.
 
+Estimates are in US dollars unless a project asks Scrooge for another currency. To see a finished workbook before running one, open the synthetic sample in `skills/agent-scrooge/assets/examples/falcon-portal/` (`falcon-portal.xlsx`, with the model, inputs and a rebuild command in its README).
+
 The workbooks carry the rate card; gitignore the cost estimates folder if the rates shouldn't be in the repository.
 
 ## Design documents (Leonardo da Vinci)

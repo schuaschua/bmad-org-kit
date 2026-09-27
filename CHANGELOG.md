@@ -9,6 +9,8 @@
   - `azure_prices.py` looks up Azure list prices from the public Retail Prices API with meter id and date.
   - `build_estimate.py` builds the workbook from a cited model (`<name>.estimate.json`), refuses a line whose citation doesn't resolve, an unpriced line or a role missing from the rate card, prints the same figures it writes as formulas, stamps the cited files and rate card for `--drift`, and won't overwrite a hand-edited workbook without `--force`.
 - **Project close-out (PC).** How long the project took (`project_timeline.py`: BMad stages from git, custom agents from their sanctums, epics and stories from the sprint status's git history, Claude work items from the ledger; calendar and working days) and total Claude API calls costed at the list prices read from Anthropic's pricing page (`claude_prices.py`), added to the workbook as Claude Usage, Claude Usage Detail, Claude Prices and Project Timeline sheets and a cost-summary line (a memo on a subscription). The ledger gains `claude_usage.csv` (tokens by type per work item and model, first and last call) and attributes Leonardo's work to its own phase.
+- **Sample workbook.** `skills/agent-scrooge/assets/examples/falcon-portal/`: a synthetic project's estimate and close-out in USD (`falcon-portal.xlsx`, `.facts.csv`, the model and its inputs), rebuildable with one command; a test keeps it building.
+- **USD by default.** Estimates and the rate card are in US dollars unless the owner asks for another currency.
 - **Dashboard-ready.** Every data range is a named Excel table; `<name>.facts.csv` holds the cost lines as plain values for Power BI.
 - **Rate card (RT). `rate-card.json` in the sanctum: currency, source, date and a day rate per role, changed only with figures you give.
 

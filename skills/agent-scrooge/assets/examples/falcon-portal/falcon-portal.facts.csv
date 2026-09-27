@@ -1,0 +1,9 @@
+estimate,currency,category,item,monthly,delivery,run,total
+falcon-portal,USD,environment,Dev,488.43,1953.72,5861.16,7814.88
+falcon-portal,USD,environment,Test,763.13,1526.26,9157.56,10683.82
+falcon-portal,USD,environment,Prod,1381.61,1381.61,16579.32,17960.93
+falcon-portal,USD,team,Delivery team,,363400.0,0,363400.0
+falcon-portal,USD,other,Other one-off costs,,20700,0,20700
+falcon-portal,USD,claude (memo),Claude API usage,,299.06,0,299.06
+falcon-portal,USD,contingency,Contingency,,,,42055.96
+falcon-portal,USD,grand total,Grand total,,427857.75,34757.84,462615.59
