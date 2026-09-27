@@ -6,13 +6,15 @@
 
 Reads Claude Code's own session logs for the project (~/.claude/projects/<project root with every
 non-alphanumeric character as "-">/: one .jsonl per session, plus subagents/agent-<id>.jsonl and
-.meta.json per agent) and writes four files to <out-dir> (default: the org config's
+.meta.json per agent) and writes five files to <out-dir> (default: the org config's
 token_usage_folder, else <project>/docs/token_usage/):
 
   token_usage.csv                one row per work item x day x step x activity x model
   token_usage_summary.csv        planning phases; each story as a total plus six activity rows
   token_usage_summary_final.csv  planning phases; all stories combined into six activity rows
   report.md                      the same data as readable tables
+  claude_usage.csv               tokens by type per work item x model, with first and last call time
+                                 (for Claude API pricing, the project timeline and dashboards)
 
 Every API call is counted once (deduplicated by message id) and attributed three ways:
   work item  a story (a Jira key such as PROJ-18; the key comes from --key, else the org config's
@@ -73,6 +75,7 @@ SKILL_PHASE = {
     "agent-jules": "governance (Jules)", "bmad-agent-builder": "tooling & setup",
     "bmad-project-context": "tooling & setup", "bmad-customize": "tooling & setup", "update-config": "tooling & setup",
     "bmad-module-builder": "tooling & setup", "agent-scrooge": "token reporting", "bmad-build": None,
+    "leonardo-da-vinci": "diagrams & design docs (Leonardo)", "org-setup": "tooling & setup",
     "clear": None, "compact": None, "mcp": None, "agents": None, "cost": None, "usage": None,
 }
 SKILL_EXPIRY = timedelta(minutes=60)  # on a real branch, a skill's phase lapses after this long
@@ -83,7 +86,8 @@ DESCRIPTION_PHASE = [
     (r"\bux\b|design\.md|experience|mockup|theme|colou?r|provenance column", "UX design"),
     (r"spine|architecture|\bad-\d|tech currency|walkthrough deck|currency review|adversarial review of ad", "architecture"),
     (r"\btea\b|test design|testability", "test design"),
-    (r"jules|governance|cloudassessment|criticality", "governance (Jules)"),
+    (r"jules|governance|cloudassessment|criticality|architectureassessment|privacyassessment|airiskassessment", "governance (Jules)"),
+    (r"leonardo|drawio|\bhld\b|\blld\b|design doc", "diagrams & design docs (Leonardo)"),
     (r"standards|terraform\.md|azure\.md", "standards & conventions"),
     (r"mars rover", "bmad-build trial"),
     (r"epic|stories|story-level|jira|requirements", "epics & stories"),
@@ -97,14 +101,14 @@ ARTIFACT_PHASE = [
     (r"ARCHITECTURE-SPINE|planning-artifacts/architecture", "architecture"),
     (r"epics\.md|mcp__atlassian|sprint-status|createJiraIssue|editJiraIssue", "epics & stories"),
     (r"test-design|testarch", "test design"),
-    (r"skills/agent-jules|docs/governance|CloudAssessment|CriticalityAssessment|_bmad/memory/jules", "governance (Jules)"),
+    (r"skills/agent-jules|docs/governance|CloudAssessment|CriticalityAssessment|TechnicalArchitectureAssessment|DataGovernancePrivacyAssessment|EnterpriseAIRiskAssessment|_bmad/memory/jules", "governance (Jules)"),
     (r"planning-artifacts/spec|SPEC\.md", "spec"),
     (r"docs/standards", "standards & conventions"),
 ]
 
 PHASE_ORDER = ["brainstorming", "spec", "architecture", "UX design", "epics & stories", "test design",
                "standards & conventions", "governance (Jules)", "tooling & setup", "bmad-build trial",
-               "planning changes (correct course)", "token reporting"]
+               "planning changes (correct course)", "diagrams & design docs (Leonardo)", "token reporting"]
 PHASE_NOTES = {
     "brainstorming": "Brainstorming the idea and the brainstorm keepsake page",
     "spec": "Condensing the brainstorm into SPEC.md",
@@ -117,7 +121,8 @@ PHASE_NOTES = {
     "tooling & setup": "BMad project context, customisations, custom agents and settings",
     "bmad-build trial": "Trial run of bmad-build on a sample spec before the real stories",
     "planning changes (correct course)": "Sprint change proposals",
-    "token reporting": "Scrooge McDuck token reports",
+    "token reporting": "Scrooge McDuck token reports and cost estimates",
+    "diagrams & design docs (Leonardo)": "Leonardo da Vinci architecture diagrams and HLD/LLD documents",
     "merges, promotions & deploys": "Merging PRs, promoting dev to main, deploying and checking deploys",
     "other": "Work that couldn't be attributed to a story or phase",
 }
@@ -409,7 +414,7 @@ def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | Non
                 # One call can span several log lines (one per content block); keep the largest usage.
                 entry = calls.setdefault(msg_id, {"usage": {}, "content": [], "model": message.get("model") or "",
                                                   "item": item, "kind": item_kind, "step": step,
-                                                  "day": (stamp or "")[:10]})
+                                                  "day": (stamp or "")[:10], "stamp": stamp or ""})
                 for key, value in usage.items():
                     if isinstance(value, int):
                         entry["usage"][key] = max(entry["usage"].get(key, 0), value)
@@ -422,6 +427,7 @@ def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | Non
     for entry in calls.values():
         parts = _weigh(entry["usage"])
         result.append({"kind": entry["kind"], "item": entry["item"], "step": entry["step"], "day": entry["day"],
+                       "stamp": entry.get("stamp", ""),
                        "model": entry["model"], "activity": activity_of(entry["content"]), **parts})
     return result
 
@@ -477,6 +483,29 @@ def detail_rows(calls: list[dict], stories: dict[str, tuple[str, str]]) -> list[
         rows.append([kind, item, number, title, day, step, activity, model, v["calls"], round(v["units"]),
                      f"{v['units'] / (per_item[(kind, item)]['units'] or 1):.1%}", f"{v['units'] / grand:.2%}",
                      v["output"], v["cache_read"], v["cache_write_5m"] + v["cache_write_1h"], v["input"]])
+    return rows
+
+
+def usage_rows(calls: list[dict], stories: dict[str, tuple[str, str]]) -> list[list]:
+    """Tokens by type per work item and model, with the first and last call: for pricing and timelines."""
+    totals: dict = collections.defaultdict(collections.Counter)
+    times: dict = {}
+    for c in calls:
+        key = (c["kind"], c["item"], c["model"])
+        totals[key]["calls"] += 1
+        for k in ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output", "units"):
+            totals[key][k] += c[k]
+        if c.get("stamp"):
+            first, last = times.get(key, (c["stamp"], c["stamp"]))
+            times[key] = (min(first, c["stamp"]), max(last, c["stamp"]))
+    rows = [["kind", "work_item", "story_no", "title", "model", "first_call", "last_call", "calls", "input_tokens",
+             "cache_write_5m_tokens", "cache_write_1h_tokens", "cache_read_tokens", "output_tokens", "cost_units"]]
+    for key in sorted(totals, key=lambda k: (_item_order(k[0], k[1], stories), k[2])):
+        kind, item, model = key
+        g, (first, last) = totals[key], times.get(key, ("", ""))
+        number, title = stories.get(item, ("", ""))
+        rows.append([kind, item, number, title, model, first, last, g["calls"], g["input"], g["cache_write_5m"],
+                     g["cache_write_1h"], g["cache_read"], g["output"], round(g["units"])])
     return rows
 
 
@@ -631,6 +660,7 @@ def main(argv: list[str] | None = None) -> int:
         "token_usage_summary.csv": lambda fh: csv.writer(fh).writerows(summary_rows(calls, stories, combine_stories=False)),
         "token_usage_summary_final.csv": lambda fh: csv.writer(fh).writerows(summary_rows(calls, stories, combine_stories=True, savings=savings)),
         "report.md": lambda fh: fh.write(report_markdown(calls, stories, str(log_dir))),
+        "claude_usage.csv": lambda fh: csv.writer(fh).writerows(usage_rows(calls, stories)),
     }
     for name, write in outputs.items():
         _write_atomic(out_dir / name, write)

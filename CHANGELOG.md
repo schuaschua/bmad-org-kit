@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.5.0 — 2026-09-28
+
+### Scrooge McDuck
+
+- **Scrooge is now a memory agent.** On first talk he builds a sanctum at `_bmad/memory/agent-scrooge/` (identity files, session logs, `estimates.md`) and remembers your currency, pricing region, rate card and spending choices. Existing `stories.json` and `savings.json` there are kept. Capability prompts and scripts stay in the skill; `wake.py` lists them each session, so later kit updates need no sanctum migration.
+- **Cost estimates (CE).** Prices the solution from the BMad artifacts (spine, spec, epics, sprint status, plus anything you give him) into `<name>.xlsx` in the new `cost_estimates_folder` (default `docs/cost_estimates`): an Overall sheet with inputs (days of delivery, working days per month, hours per month, months of run, contingency, exchange rate), a team table (employees × days × allocation = mandays, priced from the rate card) and a cost summary of delivery, run and grand totals; one sheet per environment; Rate Card; Other Costs; Sources & Gaps. All totals are formulas with named inputs.
+  - `azure_prices.py` looks up Azure list prices from the public Retail Prices API with meter id and date.
+  - `build_estimate.py` builds the workbook from a cited model (`<name>.estimate.json`), refuses a line whose citation doesn't resolve, an unpriced line or a role missing from the rate card, prints the same figures it writes as formulas, stamps the cited files and rate card for `--drift`, and won't overwrite a hand-edited workbook without `--force`.
+- **Project close-out (PC).** How long the project took (`project_timeline.py`: BMad stages from git, custom agents from their sanctums, epics and stories from the sprint status's git history, Claude work items from the ledger; calendar and working days) and total Claude API calls costed at the list prices read from Anthropic's pricing page (`claude_prices.py`), added to the workbook as Claude Usage, Claude Usage Detail, Claude Prices and Project Timeline sheets and a cost-summary line (a memo on a subscription). The ledger gains `claude_usage.csv` (tokens by type per work item and model, first and last call) and attributes Leonardo's work to its own phase.
+- **Dashboard-ready.** Every data range is a named Excel table; `<name>.facts.csv` holds the cost lines as plain values for Power BI.
+- **Rate card (RT). `rate-card.json` in the sanctum: currency, source, date and a day rate per role, changed only with figures you give.
+
+### Leonardo da Vinci
+
+- **High-Level and Low-Level Design documents (DS).** Writes `hld.docx` and `lld-<component>.docx` in the new `design_docs_folder` (default `docs/architecture/design`) from a cited model (`<name>.doc.json`) with `build-docx.py`: cover and document control, table of contents, numbered sections following the outline, every block cited, open points where they arise and in Appendix A, Appendix B traceability (ADs cited per section and ADs not cited), and the current diagrams embedded from their PNG exports. It challenges gaps before writing, as for diagrams.
+- **Confluence.** Start from an existing HLD/LLD page (its headings can become the project's outline; its statements are verified against the BMad artifacts, never cited) and publish the document to Confluence as a new or updated page through the Atlassian MCP server, only after the user confirms and never over an unseen edit. `build-docx.py --formats confluence` writes the same build as Markdown for the page; `spine.py` reports the project's `confluence_wiki_url`.
+- Org-default outlines in `assets/design-docs/hld.md` and `lld.md`. A project's own `templates/hld.md`, `lld.md` and `reference.docx` (Word styles, header, footer) in the design docs folder replace them, so the org's template drops in without code changes.
+- The build refuses an outline section left out, a cite that doesn't resolve, a stale diagram or one from another spine, and won't replace a `.docx` changed since the last build without `--force`.
+- `diagram-drift.py` checks design documents too (under `documents`); `spine.py` reports the design docs folder, its documents and which outlines and Word template apply.
+
+### Jules and the governance questionnaires
+
+- **`CloudAssessment.docx` is now `TechnicalArchitectureAssessment.docx`**, and the Criticality Assessment's 19 questions moved into it as questions 5–23 (after the 4 platform questions). `CriticalityAssessment.docx` is gone.
+- **New `DataGovernancePrivacyAssessment.docx`**: 10 questions on personal data, purpose and lawful basis, classification, residency and cross-border transfer, retention, ownership and access, protection, third parties, data subject rights, and DPIA and breach handling.
+- **New `EnterpriseAIRiskAssessment.docx`**: 20 questions for solutions that use AI: type of AI, models and inventory, use case, impact and high-impact decisions, risk rating, accountability, human oversight, kill switch, data, privacy, bias testing, disclosure, explainability, opt-out and redress, validation, monitoring, updates, third-party AI, security, and risk-framework integration. Many are drawn from the CBUAE Guidance Note on Consumer Protection and Responsible Adoption and Use of AI (issued 11/2/2026), sections 2–9.
+- Jules routes each question to the lead who signs it, since each questionnaire now mixes Product Lead and Tech Lead questions.
+- **Jules and Scrooge are offered at the right moments.** When `bmad-architecture` completes, its override's `on_complete` asks once whether Jules should fill in the three assessments and whether Scrooge should price the solution. When `bmad-build` or `bmad-build-auto` completes and every epic and story in the sprint status is done (and no close-out exists yet), it offers Scrooge's project close-out. Each agent starts only on a yes, with a fresh session (`/clear`) suggested. Projects that already have these `_bmad/custom` files get the lines to merge from `org-setup`, which never replaces their files.
+- **Custom templates.** Jules asks (at First Breath, and before answering until the owner has said) whether the organisation has its own governance templates, and asks for them in the governance folder, stating whether they replace the standard three or come in addition. Jules tells the owner it's trained on the three standard templates, and ports similar questions over: each custom question is matched to the standard question asking the same thing, and its answer carries over with re-checked evidence and a note naming the source question. Only unmatched questions are answered from scratch. `questionnaire.py` now finds the question table even when a template opens with a cover or document-control table.
+- **Jules answers all three assessments** when asked, in one session (Technical Architecture, Data Governance & Privacy, then Enterprise AI Risk), unless a single questionnaire is named. The AI assessment is answered even without AI, stating so from the artifacts. The hand-back is one list per lead across all three, plus any answers that disagree between questionnaires.
+- **Upgrading a project:** `org-setup` copies the three new files but never deletes; the old `CloudAssessment.docx` and `CriticalityAssessment.docx` stay in the governance folder until you remove them.
+
+### Kit
+
+- New settings `cost_estimates_folder` and `design_docs_folder`; `bmad-help` lists CE, RT and DS.
+
 ## 1.4.1 — 2026-09-27
 
 ### Leonardo da Vinci

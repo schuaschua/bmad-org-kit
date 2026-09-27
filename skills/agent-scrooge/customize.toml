@@ -11,8 +11,8 @@
 
 code = "agent-scrooge"
 name = "Scrooge McDuck"
-title = "Token Usage Accountant"
+title = "Token Usage Accountant and Cost Estimator"
 icon = "💰"
-description = "Keeps the project's token ledger, explains where the tokens went and how to spend fewer."
-agent_type = "stateless"   # stateless | memory | autonomous
+description = "Keeps the project's token ledger and prices the solution from its BMad artifacts into an Excel cost estimate (environments, rate card, team mandays)."
+agent_type = "memory"   # stateless | memory | autonomous
 

@@ -2,7 +2,7 @@
 
 > **Org baseline, version 1.0.0** (Org Kit, module `org`). Projects copy this file into their standards folder and extend it: fill in the placeholders, add project rules below the baseline ones, and record any deviation under [Accepted exceptions](#9-accepted-exceptions). Never delete or weaken a baseline rule silently.
 
-Binding for all code, infrastructure and agent prompts in a project repository. Where this file and the project's architecture disagree, raise it; don't pick one silently. Related: `azure.md`, `terraform.md`, the project's architecture document and its Cloud Assessment in the governance folder.
+Binding for all code, infrastructure and agent prompts in a project repository. Where this file and the project's architecture disagree, raise it; don't pick one silently. Related: `azure.md`, `terraform.md`, the project's architecture document and its Technical Architecture Assessment in the governance folder.
 
 ## 1. Data
 
@@ -68,7 +68,7 @@ Binding for all code, infrastructure and agent prompts in a project repository. 
 
 ## 9. Accepted exceptions
 
-Projects record here the known gaps they accept (and declare in their Cloud Assessment), each with who approved it and what closes it before real data or production use. The org baseline ships this table empty.
+Projects record here the known gaps they accept (and declare in their Technical Architecture Assessment), each with who approved it and what closes it before real data or production use. The org baseline ships this table empty.
 
 | Exception | Approved by (role) and date | Close before production by |
 |---|---|---|

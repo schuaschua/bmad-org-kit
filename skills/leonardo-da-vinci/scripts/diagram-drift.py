@@ -2,11 +2,12 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Check every diagram in the diagrams folder against the spine it was drawn from.
+"""Check every diagram and design document against the spine it was drawn from.
 
 Reads the stamp build-drawio.py puts on each .drawio file's root cell (draw.io keeps it
-when the file is edited and saved, compressed or not) and compares it with the spine and
-sources as they are now:
+when the file is edited and saved, compressed or not), and the stamp build-docx.py writes into
+each design document's model (<name>.doc.json beside <name>.docx in the design documents
+folder), and compares it with the spine and sources as they are now:
 
     current       the spine is unchanged since the diagram was drawn
     outdated      the spine changed after drawing, but no AD and no other source did
@@ -19,8 +20,9 @@ sources as they are now:
 Usage:
     uv run diagram-drift.py <project-root> [--folder <diagrams folder>] [-o <file>]
 
-The folder defaults to the org config's diagrams_folder (docs/architecture/diagrams).
-Exit codes: 0=nothing stale, 1=a diagram is stale or its spine is missing, 2=runtime error
+The folders default to the org config's diagrams_folder (docs/architecture/diagrams) and
+design_docs_folder (docs/architecture/design); results are under "diagrams" and "documents".
+Exit codes: 0=nothing stale, 1=a diagram or document is stale or its spine is missing, 2=runtime error
 """
 
 from __future__ import annotations
@@ -61,6 +63,20 @@ def check(root: Path, path: Path) -> dict:
     entry = {"file": path.name, "model": model.name if model.is_file() else None}
     if not st:
         return {**entry, "status": "unstamped"}
+    return compare(root, st, entry)
+
+
+def check_doc(root: Path, model_path: Path) -> dict:
+    """A design document's stamp lives in its model (<name>.doc.json), written by build-docx.py."""
+    docx = model_path.with_name(model_path.name[: -len(".doc.json")] + ".docx")
+    entry = {"file": docx.name, "model": model_path.name}
+    st = json.loads(model_path.read_text(encoding="utf-8")).get("stamp")
+    if not st or not docx.is_file():
+        return {**entry, "status": "unstamped"}
+    return compare(root, st, entry)
+
+
+def compare(root: Path, st: dict, entry: dict) -> dict:
     entry.update({"type": st.get("arch_type"), "title": st.get("arch_title"), "drawn": st.get("drawn"),
                   "spine": st.get("spine"),
                   "drawn_from": st.get("spine_commit", "")[:7] or st.get("spine_modified", "")})
@@ -106,11 +122,15 @@ def main(argv: list[str] | None = None) -> int:
     folder = folder if folder.is_absolute() else root / folder
     try:
         results = [check(root, p) for p in sorted(folder.glob("*.drawio"))] if folder.is_dir() else []
-    except (OSError, ET.ParseError, ValueError, zlib.error) as exc:
+        docs_folder = spine_mod.design_docs_folder(root)
+        documents = [check_doc(root, p) for p in sorted(docs_folder.glob("*.doc.json"))] if docs_folder.is_dir() else []
+    except (OSError, ET.ParseError, ValueError, zlib.error, json.JSONDecodeError) as exc:
         print(json.dumps({"status": "error", "message": str(exc)}))
         return 2
-    counts = {s: sum(r["status"] == s for r in results) for s in ("current", "outdated", "stale", "spine-missing", "unstamped")}
-    text = json.dumps({"status": "success", "folder": folder.as_posix(), "counts": counts, "diagrams": results}, indent=2)
+    counts = {s: sum(r["status"] == s for r in results + documents)
+              for s in ("current", "outdated", "stale", "spine-missing", "unstamped")}
+    text = json.dumps({"status": "success", "folder": folder.as_posix(), "docs_folder": docs_folder.as_posix(),
+                       "counts": counts, "diagrams": results, "documents": documents}, indent=2)
     if args.output:
         Path(args.output).write_text(text + "\n", encoding="utf-8")
     else:

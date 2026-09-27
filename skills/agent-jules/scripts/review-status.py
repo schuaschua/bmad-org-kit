@@ -7,7 +7,7 @@
 A review file holds one item per questionnaire question or reviewer comment:
 
     ## Q-12
-    - source: question 12 "What is the RTO ...?" (CriticalityAssessment.docx)
+    - source: question 16 "What is the RTO ...?" (TechnicalArchitectureAssessment.docx)
     - owner: Product Lead
     - status: pending
     - posted: C-1a2b3c4d          (optional, set after a reply is applied)

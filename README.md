@@ -3,13 +3,13 @@
 A BMad module that adds the organisation layer to any BMad Method (`bmm`) project:
 
 - **Org standards baselines** — `azure.md`, `terraform.md`, `security.md` and `coding-style.md` (org baseline 1.0.0). Projects copy them and extend them with their own names, rules and accepted exceptions.
-- **Blank governance questionnaires** — `CriticalityAssessment.docx` and `CloudAssessment.docx`.
-- **BMad customization overrides** — the dev agent and the architecture, build, code-review and test-design workflows load the project's standards as persistent facts; epics-and-stories uses the org's hybrid story structure and offers to sync to the project's Jira.
-- **Scrooge McDuck (`agent-scrooge`), Token Usage Accountant** — counts every API call in the project's Claude Code logs, attributes it to a story (by the project's Jira key) or planning phase, a step and an activity, writes a gitignored ledger, and sternly audits it for savings. Background hooks keep the ledger current.
-- **Leonardo da Vinci (`leonardo-da-vinci`), Architecture Diagrams** — draws draw.io diagrams (C4 context, C4 containers, cloud deployment with Azure and Kubernetes icons, data flow with trust boundaries and PII/PHI, sequence for a named flow) from the project's architecture spine, spec and UX docs only. Every box and arrow cites its AD or section, gaps are listed rather than drawn, it challenges the architecture before drawing, and a drift check flags diagrams older than their spine.
-- **Jules (`agent-jules`), IT Governance** — drafts, coaches and routes the Criticality and Cloud Assessment answers for the Product Lead and Tech Lead from the project's BMad artifacts, replies to reviewer comments and checks answers for drift. Jules also considers the regulatory documents of the region the solution is developed in, chosen at setup, citing the clause it relies on and checking each document's date before relying on it.
+- **Blank governance questionnaires** — `TechnicalArchitectureAssessment.docx` (platform questions, then business criticality: 23 questions), `DataGovernancePrivacyAssessment.docx` (10) and `EnterpriseAIRiskAssessment.docx` (20, for solutions that use AI; many drawn from the CBUAE AI guidance note).
+- **BMad customization overrides** — the dev agent and the architecture, build, code-review and test-design workflows load the project's standards as persistent facts; when the architecture workflow finishes it offers Jules (governance assessments) and Scrooge McDuck (cost estimate), and when the build finishes the last story it offers Scrooge's project close-out; epics-and-stories uses the org's hybrid story structure and offers to sync to the project's Jira.
+- **Scrooge McDuck (`agent-scrooge`), Token Usage Accountant and Cost Estimator** — a memory agent. Counts every API call in the project's Claude Code logs, attributes it to a story (by the project's Jira key) or planning phase, a step and an activity, writes a gitignored ledger, and sternly audits it for savings; background hooks keep the ledger current. Prices the solution from whatever the BMad work has produced so far (spine, spec, epics, plus anything you tell it) into an Excel workbook: a sheet per environment at Azure list prices, an employee rate card, other costs, and an overall summary where days of delivery, employees and mandays are inputs you can change.
+- **Leonardo da Vinci (`leonardo-da-vinci`), Architecture Diagrams and Design Documents** — writes cited High-Level and Low-Level Design Word documents, and draws draw.io diagrams (C4 context, C4 containers, cloud deployment with Azure and Kubernetes icons, data flow with trust boundaries and PII/PHI, sequence for a named flow) from the project's architecture spine, spec and UX docs only. Every box and arrow cites its AD or section, gaps are listed rather than drawn, it challenges the architecture before drawing, and a drift check flags diagrams older than their spine.
+- **Jules (`agent-jules`), IT Governance** — drafts, coaches and routes the Technical Architecture, Data Governance & Privacy and Enterprise AI Risk Assessment answers for the Product Lead and Tech Lead from the project's BMad artifacts, replies to reviewer comments and checks answers for drift. Jules asks whether your organisation has its own questionnaire templates (put them in the governance folder), and ports answers to similar questions over from the three standard ones. Jules also considers the regulatory documents of the region the solution is developed in, chosen at setup, citing the clause it relies on and checking each document's date before relying on it.
 
-Version 1.4.1 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
+Version 1.5.0 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
 
 ## Contents
 
@@ -17,8 +17,10 @@ Version 1.4.1 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
 skills/
   agent-jules/          # Jules: SKILL.md, sanctum templates, capability prompts, scripts (+ tests)
     assets/regions.toml # regional regulation registry: region -> regulator, web domains, source documents
-  agent-scrooge/        # Scrooge: SKILL.md, capability prompts, token_report.py (+ tests)
-  leonardo-da-vinci/    # SKILL.md, per-diagram-type references, stencil catalogues, spine/build/drift/stencil scripts (+ tests)
+  agent-scrooge/        # Scrooge: SKILL.md, sanctum templates, capability prompts, token_report.py,
+                        #   azure_prices.py, build_estimate.py, wake/init-sanctum (+ tests)
+  leonardo-da-vinci/    # SKILL.md, per-diagram-type and design-doc references, HLD/LLD outlines, stencil catalogues,
+                        #   spine/build-drawio/build-docx/drift/stencil scripts (+ tests)
   org-setup/            # setup skill: standards, questionnaires, overrides, skill links, tooling check
     assets/
       module.yaml       # module identity, agent roster, config questions
@@ -52,7 +54,9 @@ Prerequisites: BMad Method installed in the project (`_bmad/`), [`uv`](https://d
    | `governance_folder` | where the questionnaires live | `{project-root}/docs/governance` |
    | `standards_folder` | where the standards live | `{project-root}/docs/standards` |
    | `token_usage_folder` | where Scrooge writes the token ledger (gitignored) | `{project-root}/docs/token_usage` |
+   | `cost_estimates_folder` | where Scrooge writes cost estimate models and Excel workbooks | `{project-root}/docs/cost_estimates` |
    | `diagrams_folder` | where Leonardo da Vinci writes `.drawio` files, their models and exports | `{project-root}/docs/architecture/diagrams` |
+   | `design_docs_folder` | where Leonardo da Vinci writes HLD/LLD `.docx` files and their models | `{project-root}/docs/architecture/design` |
    | `region` | region the solution is developed in (`none`, `uae`); picks the regulatory documents Jules considers | `none` |
 
 4. Talk to Jules. On first activation Jules builds its sanctum at `_bmad/memory/agent-jules/` and picks up the governance and standards folders from the `org` config.
@@ -82,7 +86,33 @@ Ask Leonardo for a diagram ("draw the deployment diagram", "C4 containers", "seq
 - **Stamped and checked for drift.** Each file records the spine's commit (or date) and a hash of every AD. `uv run skills/leonardo-da-vinci/scripts/diagram-drift.py <project-root>` names the ADs that changed and exits 1 when a diagram is stale, so it also works as a CI or pre-commit check.
 - **Exports** (PNG, SVG) need draw.io desktop; the draw.io MCP server (`claude mcp add drawio -- npx -y @drawio/mcp`) adds an in-browser preview. Neither is required.
 
-Jules may cite a current diagram in a Cloud Assessment answer, beside the AD it was drawn from.
+Jules may cite a current diagram in a Technical Architecture Assessment answer, beside the AD it was drawn from.
+
+## Cost estimates (Scrooge McDuck)
+
+Ask Scrooge for a cost estimate ("what will this cost to build and run?", "price the architecture", "update the estimate"). On first talk Scrooge builds its sanctum at `_bmad/memory/agent-scrooge/` (your existing `stories.json` and `savings.json` stay put) and asks for your reporting currency, Azure region and rate card.
+
+- **From the BMad artifacts.** The spine decides the components, environments and regions; the spec sizes them; the epics and sprint status size the team. Feed it more at any time: a vendor quote, a figure in chat, a what-if scenario (each scenario is its own estimate).
+- **Challenges first.** Gaps and contradictions that move the price (an unsized database, unstated DR) are put to you, most expensive first, before anything is priced.
+- **Priced at source.** Cloud lines use Microsoft's public Retail Prices API (`skills/agent-scrooge/scripts/azure_prices.py`), at list price, with the meter id and date. Day rates come only from your rate card (`rate-card.json` in the sanctum). Discounts only when you give them.
+- **Cited, not guessed.** Each line cites its AD or section, `owner: <who, date>`, or an agreed `assumption:`. Anything undecided is a gap listed in the workbook, never in a total.
+- **The workbook** (`<name>.xlsx`, built by `build_estimate.py` from `<name>.estimate.json`): **Overall** (inputs: days of delivery, working days per month, hours per month, months of run, contingency, exchange rate; the team table with role, day rate, employees, days, allocation, mandays and cost; and the cost summary of delivery, run and grand totals), one sheet per **environment**, **Rate Card**, **Other Costs**, and **Sources & Gaps**. Every total is a formula, so changing a blue cell recalculates it in Excel.
+- **Kept current.** `uv run skills/agent-scrooge/scripts/build_estimate.py <project-root> <name>.estimate.json --drift` names the cited files and rate card that changed since the build. A rebuild refuses to overwrite a workbook you edited by hand; Scrooge carries your edits into the model first.
+
+- **Close-out.** At the end of the project Scrooge records how long it took: each BMad stage (from git), each custom agent (from its sanctum), each epic and story (from the sprint status's git history), start to finish in calendar and working days. He adds the total Claude API calls, costed at the list prices read from Anthropic's pricing page, as the Claude Usage, Claude Prices and Project Timeline sheets and a line in the cost summary (a memo when Claude Code was on a subscription).
+- **Dashboards.** Every data range is a named Excel table (`tblCostSummary`, `tblTeam`, `tblEnv<name>`, `tblClaudeUsage`, `tblTimeline` ...) for Power BI or Excel Online. Power BI reads the values Excel last saved, so open and save a fresh build once, or use the plain-value CSVs: `<name>.facts.csv` beside the workbook, and `claude_usage.csv` and `project_timeline.csv` in the token usage folder.
+
+The workbooks carry the rate card; gitignore the cost estimates folder if the rates shouldn't be in the repository.
+
+## Design documents (Leonardo da Vinci)
+
+Ask Leonardo for the high-level design ("write the HLD") or a low-level design for a component ("LLD for the Chat API"). It writes `hld.docx` or `lld-<component>.docx` in the design documents folder, from a `<name>.doc.json` model beside it.
+
+- **Same rules as the diagrams.** Only the BMad artifacts (spine, spec, UX, and the epics and test design where an LLD needs them), never code or the web. Every paragraph, list and table cites its AD or section in grey; what the sources don't settle is an *open point*, printed where it arises and collected in Appendix A. Appendix B traces each AD to the sections citing it and lists the ADs the document doesn't cite. It challenges the gaps before writing, and approved answers become AD text in the spine.
+- **Diagrams included.** The document embeds the current diagrams its sections call for (C4, data flow and deployment for the HLD; sequences and deployment for an LLD), offering to draw missing ones first.
+- **Org outline until you have a template.** The kit's default sections are `skills/leonardo-da-vinci/assets/design-docs/hld.md` and `lld.md`. When your organisation's template arrives, put its sections in `<design docs folder>/templates/hld.md` / `lld.md` and its Word file as `templates/reference.docx` (styles, header, footer, logo); Leonardo can set both up from the Word template.
+- **Confluence.** When an HLD or LLD already lives on Confluence, Leonardo can start from it: its headings can become the project's outline, and its statements are checked against the BMad artifacts (what they support is cited, what they don't is put to you and becomes AD text only on approval). It can also publish the document to Confluence, as a new page under the project's wiki page or over the existing one, through the Atlassian MCP server. It asks before every create or update, and never overwrites an edit made on the page without showing it to you first. The page location comes only from the project's own settings or from you.
+- **Word is for review, the model is the source.** A rebuild won't replace a `.docx` changed since the last build; Leonardo carries reviewers' changes into the model first. `diagram-drift.py` flags documents whose ADs changed.
 
 ## Regions
 
@@ -102,7 +132,7 @@ To add a region, add a `[regions.<code>]` table to `skills/agent-jules/assets/re
 | Code | Skill | Capability |
 | --- | --- | --- |
 | SU | org-setup | Set up or reconfigure the Org Kit |
-| AQ | agent-jules | Answer a questionnaire |
+| AQ | agent-jules | Answer the questionnaires (all three by default) |
 | CL | agent-jules | Coach the Product Lead or Tech Lead |
 | RC | agent-jules | Reply to reviewer comments |
 | CW | agent-jules | Comment watch (pulse) |
@@ -112,22 +142,26 @@ To add a region, add a `[regions.<code>]` table to `skills/agent-jules/assets/re
 | SC | agent-scrooge | What a story or phase cost |
 | CD | agent-scrooge | Cost drivers and savings audit |
 | CL | agent-scrooge | Story cost line for PRs and Jira |
+| CE | agent-scrooge | Cost estimate workbook (build or update) |
+| RT | agent-scrooge | Employee rate card |
+| PC | agent-scrooge | Project close-out: duration, Claude API calls and cost |
 | DG | leonardo-da-vinci | Draw an architecture diagram |
-| DD | leonardo-da-vinci | Diagram drift check |
+| DS | leonardo-da-vinci | High-Level or Low-Level Design document |
+| DD | leonardo-da-vinci | Diagram and document drift check |
 
 ## Updating
 
 - Update the kit through the BMad installer (it refreshes the `org` config and help entries), then run `org-setup` again for any new project files.
 - Standards, questionnaires and overrides that already exist in the project are left alone, so project extensions survive. To adopt a newer baseline, diff your copy against `skills/org-setup/assets/standards/` and merge by hand; each baseline carries its version in its header.
 - Jules's sanctum (`_bmad/memory/agent-jules/`) is never touched by an update. Sanctum files and its copies of the capability prompts are created at First Breath, so template and prompt changes reach an existing sanctum only by hand; CHANGELOG.md lists what to carry over for each release.
-- Scrooge's project data (`_bmad/memory/agent-scrooge/stories.json`, `savings.json`) is never touched by an update.
+- Scrooge's sanctum and project data (`_bmad/memory/agent-scrooge/`: identity files, `stories.json`, `savings.json`, `rate-card.json`) are never touched by an update. Its capability prompts and scripts stay in the skill, so they update with the kit without a migration.
 
 ## Developing the kit
 
 ```bash
 uv run skills/org-setup/scripts/tests/test-install-org-assets.py
 for t in skills/agent-jules/scripts/tests/*.py; do uv run "$t"; done
-uv run --with pytest pytest -q skills/agent-scrooge/scripts/tests
+uv run --with pytest --with openpyxl pytest -q skills/agent-scrooge/scripts/tests   # add --with formulas to recalculate the workbook too
 for t in skills/leonardo-da-vinci/scripts/tests/test_*.py; do uv run "$t"; done
 ```
 

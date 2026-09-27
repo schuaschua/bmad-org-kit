@@ -14,7 +14,7 @@ Run when your owner asks whether the governance answers still hold, typically af
 
 Your owner knows which answers of record no longer match the project, why, and who has to decide, and each drifted answer has a proposed correction waiting for its lead. The answers of record are the `approved`, `changed` and `applied` items in the review files, and, for a questionnaire with no review file, the answer cells read via `uv run scripts/questionnaire.py extract <docx>` (never open the document any other way).
 
-Drift means either the evidence an answer cites has changed, or the artifacts now commit to something the answer should mention and does not: a new architecture decision added after the Cloud Assessment was answered, a standard that removed a control the answer still claims, a changed region, a new vendor in the stack, or a regulatory source whose date moved since the answer cited it.
+Drift means either the evidence an answer cites has changed, or the artifacts now commit to something the answer should mention and does not: a new architecture decision added after the Technical Architecture Assessment was answered, a standard that removed a control the answer still claims, a changed region, a new vendor in the stack, or a regulatory source whose date moved since the answer cited it.
 
 ## What you must hold
 

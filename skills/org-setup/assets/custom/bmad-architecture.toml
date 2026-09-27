@@ -1,5 +1,7 @@
-# Org Kit override (org-setup). Loads the org and project standards as persistent facts.
+# Org Kit override (org-setup). Loads the org and project standards as persistent facts, and offers the
+# governance assessments (Jules) and the cost estimate (Scrooge McDuck) once the architecture is done.
 [workflow]
 persistent_facts = [
   "file:{standards_glob}",
 ]
+on_complete = "The architecture is complete, so two things can now be done from it. Ask the user once, in one message, which they would like: (1) Jules (IT Governance, the agent-jules skill) fills in the Technical Architecture, Data Governance & Privacy and Enterprise AI Risk Assessments in the governance folder; (2) Scrooge McDuck (the agent-scrooge skill) prices the solution into the Excel cost estimate: a sheet per environment, the rate card and the team's mandays. They can pick either, both or neither. Say that each works best in its own fresh session: run /clear, then say 'Jules, answer the assessments' or 'Scrooge, estimate the cost'. Start an agent here only on an explicit yes, one at a time; if they decline, tell them they can ask either agent at any time."
