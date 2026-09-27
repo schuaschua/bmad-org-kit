@@ -11,6 +11,29 @@ A BMad module that adds the organisation layer to any BMad Method (`bmm`) projec
 
 Version 1.5.0 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
 
+## What this adds to BMad, and why it's different
+
+BMad Method takes a project from idea to working code: brief, spec, architecture, epics and stories, build, review. What it doesn't cover is the work an organisation needs around that code. That means following the org's engineering standards, getting governance sign-off, knowing what the solution will cost to build and run, producing the design documents and diagrams reviewers ask for, and knowing what the AI-assisted delivery itself cost. Teams usually do that work by hand, after the fact, in documents that drift away from the design. The Org Kit does it inside the BMad flow, from the same artifacts.
+
+- **One source of truth.** Everything the kit produces is derived from what BMad already writes: the architecture spine, the spec, the UX docs, the epics and the sprint status. There is no second model of the system to keep in step. Diagrams, design documents, cost estimates and governance answers are all read from the project's own BMad artifacts.
+- **Cited, never guessed.** Every box in a diagram, sentence in a design document, line in a cost estimate and answer in a governance questionnaire names the architecture decision (AD) or section it came from. Whatever the artifacts don't settle is listed as a gap or an open point for the person who owns it, never filled with something plausible. The scripts refuse a citation that doesn't resolve. A reviewer can check any claim without the author in the room.
+- **It challenges before it produces.** Leonardo, Scrooge and Jules each put the gaps, contradictions and risky choices to you first, most consequential first. Answers you approve become AD text in the spine, so the architecture itself improves, not just the document.
+- **It notices when things change.** Each diagram, design document and estimate records which version of its sources it was built from. Drift checks name the decisions that changed since then, so a stale diagram or an answer resting on an old decision doesn't go unnoticed.
+- **Standards live in BMad's own workflows.** The org's standards are loaded as persistent facts into the dev agent and the architecture, build, code-review and test-design workflows through BMad's customisation overrides. BMad itself isn't forked, so a BMad update keeps working.
+- **It shows up at the right moment.** When the architecture is done, you're offered the governance assessments (Jules) and the cost estimate (Scrooge). When the last story is delivered, you're offered the project close-out. Epics and stories can sync to Jira, and HLD/LLD documents can be published to Confluence.
+- **It measures itself.** Scrooge counts every Claude API call the project made, attributed to its story, planning phase, step and activity, and prices it at Anthropic's list prices. The close-out records how long each BMad stage and epic took. You get evidence of what AI-assisted delivery cost and where it was spent, not an impression, and the data feeds a Power BI dashboard.
+- **People decide; agents prepare.** The agents draft, explain and route. The Product Lead and Tech Lead sign governance answers, and leads are referred to by role, never by name. Nothing is applied to a document, published to Confluence, synced to Jira or sent to governance without an explicit yes. Cloud and Claude prices come from their public price lists, with the date they were read, and day rates only ever come from your own rate card.
+- **Org-owned, project-extended.** Standards baselines, questionnaires, design-document outlines and Word templates are the organisation's defaults. Each project copies them and extends them, and the kit never overwrites a project's own version. Your own governance templates can replace the standard ones, and answers to similar questions port over. Regional regulation (for example the CBUAE's AI guidance) is a setting, and cited clause by clause.
+- **Agents that remember.** Jules and Scrooge are memory agents. Each keeps what it has learned about the project, its people and their decisions in the project's `_bmad/memory/`, and kit updates never overwrite it.
+
+| BMad stage | What the Org Kit adds |
+| --- | --- |
+| Architecture | Org standards applied; diagrams and HLD/LLD documents drawn from the spine; its gaps challenged; governance assessments and cost estimate offered |
+| Epics and stories | Org story structure; Jira sync |
+| Build and review | Standards enforced in the dev agent, build and code review; every Claude call counted per story |
+| Delivery complete | Close-out: duration by stage and epic, Claude API calls and cost, dashboard-ready workbook |
+| Any time | Governance answers, reviewer replies and drift checks (Jules); cost and savings audits (Scrooge); diagram and document drift (Leonardo) |
+
 ## Contents
 
 ```text
