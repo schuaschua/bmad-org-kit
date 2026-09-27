@@ -5,18 +5,19 @@
 """Describe a project's architecture spines, diagrams folder and existing diagrams as JSON.
 
 Without --spine: the spines found at the BMad location, the diagrams folder (org config
-`diagrams_folder`), the diagrams already in it, and whether draw.io desktop is installed
-for PNG/SVG exports.
+`diagrams_folder`), the diagrams already in it, whether draw.io desktop is installed for
+PNG/SVG exports, and the user's name and language from BMad's config.
 
 With --spine: that spine's stamp, which is what a diagram records about the spine it was
 drawn from: path, last git commit touching it (and whether it has uncommitted changes),
 modification time, and a short hash of every AD's text. diagram-drift.py compares a
 diagram's stamp with the current one to name the ADs that changed.
 
-An AD starts at a line whose first token is its id (`AD-<n>`): a heading (`### AD-4 Hosting`),
-a list item (`- **AD-4** ...`) or a bold paragraph. It runs to the next AD, or, when the AD
-is a heading, to the next heading at the same or a higher level. The first definition of an
-id wins; later ones are reported under `duplicates`.
+An AD is defined by a heading (`### AD-4 Hosting`) or by a bold id at the start of a list item
+or paragraph (`- **AD-4** ...`); a plain line that merely starts with an id is part of the text
+around it. An AD runs to the next AD, or, when it is a heading, to the next heading at the same
+or a higher level. The first definition of an id wins; later ones are reported under
+`duplicates`, which is a defect in the spine. `next_ad` is the id a new AD should take.
 
 Usage:
     uv run spine.py <project-root> [--spine <path>] [-o <file>]
@@ -41,12 +42,29 @@ from pathlib import Path
 SPINE_GLOB = "_bmad-output/planning-artifacts/architecture/*/ARCHITECTURE-SPINE.md"
 DEFAULT_FOLDER = "docs/architecture/diagrams"
 CONFIG_FILES = ["_bmad/config.toml", "_bmad/custom/config.toml", "_bmad/custom/config.user.toml"]
-AD_START = re.compile(r"^ {0,3}(#{1,6}\s+)?(?:[-*+]\s+)?(?:\*\*|__)?\[?(AD-\d+)\b\]?(?:\*\*|__)?[\s:.\-–—]*(.*)$")
+# An AD is defined only by a heading ("### AD-4 Hosting") or a bold id at the start of a list item or
+# paragraph ("- **AD-4** ..."). A plain line that starts with an id ("AD-2 constrains this") is a mention
+# inside another AD's text, not a definition.
+AD_START = re.compile(r"^ {0,3}(?:(#{1,6})\s+(?:\*\*|__)?|(?:[-*+]\s+)?(?:\*\*|__))\[?(AD-\d+)\b\]?(?:\*\*|__)?[\s:.\-–—]*(.*)$")
 HEADING = re.compile(r"^ {0,3}(#{1,6})\s")
 
 
 def find_spines(root: Path) -> list[Path]:
     return sorted(root.glob(SPINE_GLOB))
+
+
+def core_settings(root: Path) -> dict:
+    """user_name and communication_language from BMad's [core] config (later files win)."""
+    found = {"user_name": "", "communication_language": "English"}
+    for rel in ["_bmad/config.toml", "_bmad/config.user.toml", "_bmad/custom/config.toml", "_bmad/custom/config.user.toml"]:
+        path = root / rel
+        if path.is_file():
+            try:
+                core = tomllib.loads(path.read_text(encoding="utf-8")).get("core", {})
+            except tomllib.TOMLDecodeError:
+                continue
+            found.update({k: str(v) for k, v in core.items() if k in found and str(v).strip()})
+    return found
 
 
 def diagrams_folder(root: Path) -> Path:
@@ -86,7 +104,7 @@ def parse_ads(text: str) -> tuple[dict[str, dict], list[str]]:
     for i, line in enumerate(lines):
         m = AD_START.match(line)
         if m:
-            level = len(m.group(1).strip()) if m.group(1) else 0
+            level = len(m.group(1)) if m.group(1) else 0
             starts.append((i, m.group(2), level, m.group(3).strip(" *_")))
     ads: dict[str, dict] = {}
     duplicates: list[str] = []
@@ -124,9 +142,10 @@ def stamp(root: Path, spine: Path) -> dict:
     dirty = bool(_git(root, "status", "--porcelain", "--", rel)) if commit else False
     modified = datetime.fromtimestamp(spine.stat().st_mtime, timezone.utc).isoformat(timespec="seconds")
     ads, duplicates = parse_ads(spine.read_text(encoding="utf-8"))
+    top = max((int(a[3:]) for a in ads), default=0)
     return {"spine": rel, "spine_commit": commit, "spine_committed": committed, "spine_dirty": dirty,
             "spine_modified": modified, "ad_hashes": {k: v["hash"] for k, v in ads.items()},
-            "ads": ads, "duplicates": duplicates}
+            "ads": ads, "duplicates": duplicates, "next_ad": f"AD-{top + 1}"}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -154,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
             "diagrams_folder": folder.as_posix(),
             "diagrams": sorted(p.name for p in folder.glob("*.drawio")) if folder.is_dir() else [],
             "drawio_cli": drawio_cli(),
+            **core_settings(root),
         }
         if not spines:
             result["message"] = f"no architecture spine at {SPINE_GLOB}"

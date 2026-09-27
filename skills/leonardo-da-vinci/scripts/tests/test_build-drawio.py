@@ -165,6 +165,91 @@ class BuildTests(Project):
         self.assertEqual(code, 1)
         self.assertIn("page must be", out["message"])
 
+    def crowded_model(self) -> dict:
+        long = "a deliberately long label that has to wrap over several lines to fit"
+        return {"type": "deployment", "title": "Crowded", "spine": SPINE_REL,
+                "groups": [{"id": "azure", "label": "Azure with a rather long header label", "kind": "cloud", "cite": "AD-1"},
+                           {"id": "rg", "label": "Resource group with its own long header", "kind": "resource_group",
+                            "parent": "azure", "icon": "general/Resource_Groups", "cite": "AD-1"}],
+                "nodes": [{"id": "u", "label": "Customer", "kind": "person", "cite": "AD-1"},
+                          {"id": "a", "label": "App", "description": long, "kind": "service", "group": "rg",
+                           "icon": "app_services/App_Services", "cite": ["AD-1", "AD-2"]},
+                          {"id": "b", "label": "Queue worker " + long, "kind": "service", "group": "rg", "cite": "AD-1"},
+                          {"id": "c", "label": "Cosmos DB", "kind": "service", "group": "rg", "icon": "databases/Azure_Cosmos_DB",
+                           "cite": "AD-2", "layer": 3},
+                          {"id": "d", "label": "OpenAI", "kind": "service", "icon": "ai_machine_learning/Azure_OpenAI", "cite": "AD-3"}],
+                "edges": [{"from": "u", "to": "a", "label": long, "cite": "AD-1"},
+                          {"from": "a", "to": "b", "label": "hands work to " + long, "cite": "AD-1"},
+                          {"from": "a", "to": "c", "label": "reads and writes " + long, "cite": "AD-2"},
+                          {"from": "a", "to": "d", "label": "asks " + long, "cite": "AD-3"},
+                          {"from": "u", "to": "c", "label": "a long jump over two rows " + long, "cite": "AD-2"}]}
+
+    def test_crowded_diagram_builds_without_overlaps(self):
+        code, out = self.build(self.crowded_model(), "deployment")
+        self.assertEqual(code, 0, out)
+        root = ET.parse(self.folder / "deployment.drawio").getroot()
+        cells = {o.get("id"): o.find("mxCell") for o in root.iter("object")}
+        self.assertIn("labelWidth=", cells["n-a"].get("style"))          # icon labels wrap where they were measured
+        for i in range(1, 6):
+            self.assertIn("edgeStyle=none", cells[f"e-{i}"].get("style"))  # arrows follow the routed lanes
+            self.assertIsNotNone(cells[f"e-{i}"].find("mxGeometry/Array"))
+
+    def test_overlap_check_catches_a_collision(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("build_drawio", SCRIPTS / "build-drawio.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        model = self.crowded_model()
+        mod.validate(model, self.root)
+        plan = mod.plan_graph(model, 0)
+        self.assertEqual(mod.overlaps(model, plan), [])
+        a, b = plan["vis"]["a"], plan["vis"]["b"]
+        a.x, a.y = b.x + 5, b.y + 5  # plant one icon on the box beside it
+        self.assertTrue(any("node a overlaps node b" in p or "node b overlaps node a" in p for p in mod.overlaps(model, plan)))
+
+    def test_cited_sections_must_exist(self):
+        model = containers_model()
+        model["nodes"][0]["cite"] = "SPEC.md §9.9"
+        model["edges"][0]["cite"] = 'SPEC.md "Users"'  # a heading title is fine
+        code, out = self.build(model)
+        self.assertEqual(code, 1)
+        self.assertIn("cite 'SPEC.md §9.9' names no section of SPEC.md", out["message"])
+        self.assertIn("2 Users", out["message"])
+        self.assertNotIn("SPEC.md \"Users\"", out["message"])
+
+    def test_data_services_stay_out_of_compute_clusters(self):
+        base = {"type": "deployment", "title": "Hosting", "spine": SPINE_REL,
+                "groups": [{"id": "vnet", "label": "Virtual network", "kind": "vnet", "cite": "AD-1"},
+                           {"id": "sn", "label": "Subnet", "kind": "subnet", "parent": "vnet", "cite": "AD-1"},
+                           {"id": "aks", "label": "AKS cluster", "kind": "boundary", "parent": "sn",
+                            "icon": "compute/Kubernetes_Services", "cite": "AD-1"}],
+                "nodes": [{"id": "web", "label": "Front-end", "kind": "service", "group": "aks", "icon": "kubernetes:pod", "cite": "AD-1"},
+                          {"id": "db", "label": "Cosmos DB", "kind": "service", "group": "aks",
+                           "icon": "databases/Azure_Cosmos_DB", "cite": "AD-2"}]}
+        code, out = self.build(base, "deployment")
+        self.assertEqual(code, 1)
+        self.assertIn("sits inside the compute cluster 'aks'", out["message"])
+        base["nodes"][1]["group"] = "sn"
+        code, out = self.build(base, "deployment", "--force")
+        self.assertIn("shares subnet 'sn' with a compute cluster", out["message"])
+        base["groups"].append({"id": "sndb", "label": "Data subnet", "kind": "subnet", "parent": "vnet", "cite": "AD-2"})
+        base["nodes"][1]["group"] = "sndb"
+        code, out = self.build(base, "deployment", "--force")
+        self.assertEqual(code, 0, out)
+
+    def test_sequence_participants_ordered_by_first_appearance(self):
+        seq = {"type": "sequence", "title": "Turn", "spine": SPINE_REL,
+               "participants": [{"id": "o", "label": "OpenAI", "kind": "external", "cite": "AD-3"},
+                                {"id": "c", "label": "Customer", "kind": "person", "cite": "AD-1"},
+                                {"id": "api", "label": "Chat API", "kind": "container", "cite": "AD-1"}],
+               "messages": [{"from": "c", "to": "api", "label": "question", "cite": "AD-1"},
+                            {"from": "api", "to": "o", "label": "prompt", "cite": "AD-3"}]}
+        self.assertEqual(self.build(seq, "sequence-turn")[0], 0)
+        xs = {o.get("id"): float(o.find("mxCell/mxGeometry").get("x"))
+              for o in ET.parse(self.folder / "sequence-turn.drawio").getroot().iter("object") if o.get("id", "").startswith("p-")}
+        self.assertLess(xs["p-c"], xs["p-api"])
+        self.assertLess(xs["p-api"], xs["p-o"])
+
     def test_unknown_icon_or_provider_is_refused_with_suggestions(self):
         model = {"type": "deployment", "title": "Hosting", "spine": SPINE_REL,
                  "nodes": [{"id": "db", "label": "Cosmos", "kind": "service", "icon": "databases/Cosmos", "cite": "AD-2"}]}

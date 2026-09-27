@@ -9,7 +9,7 @@ A BMad module that adds the organisation layer to any BMad Method (`bmm`) projec
 - **Leonardo da Vinci (`leonardo-da-vinci`), Architecture Diagrams** — draws draw.io diagrams (C4 context, C4 containers, cloud deployment with Azure and Kubernetes icons, data flow with trust boundaries and PII/PHI, sequence for a named flow) from the project's architecture spine, spec and UX docs only. Every box and arrow cites its AD or section, gaps are listed rather than drawn, it challenges the architecture before drawing, and a drift check flags diagrams older than their spine.
 - **Jules (`agent-jules`), IT Governance** — drafts, coaches and routes the Criticality and Cloud Assessment answers for the Product Lead and Tech Lead from the project's BMad artifacts, replies to reviewer comments and checks answers for drift. Jules also considers the regulatory documents of the region the solution is developed in, chosen at setup, citing the clause it relies on and checking each document's date before relying on it.
 
-Version 1.4.0 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
+Version 1.4.1 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
 
 ## Contents
 
@@ -77,7 +77,8 @@ Ask Leonardo for a diagram ("draw the deployment diagram", "C4 containers", "seq
 - **Cited, not guessed.** Each diagram has a `<name>.model.json` beside its `.drawio`, listing every element with its citation and the gaps. The build refuses an element whose citation doesn't resolve to a real AD or source section, and a gap is listed on the page, never drawn.
 - **Org drawing rules** (deployment): a service that hosts workloads, such as AKS, is a box with its icon; workloads inside it use a container icon; data services sit outside compute clusters in their own subnet; multi-region is one set of boxes per region (two when the spine doesn't count them) inside one enclosing box.
 - **Icons** come from draw.io's own shape libraries: `skills/leonardo-da-vinci/assets/stencils/azure.json` (645 Azure stencils) and `kubernetes.json`. Another provider is one command away: `uv run skills/leonardo-da-vinci/scripts/stencils.py extract --index <draw.io search-index.json> --provider aws --prefix mxgraph.aws4.`.
-- **Paper.** It asks for size and orientation (default A4 portrait) and fits the diagram to one page or two.
+- **Nothing overlaps.** Every label is measured and every arrow is routed in its own lane; a final check proves no text, icon, box or header collides, and the build refuses a diagram that would. It never squeezes the layout to save paper.
+- **Paper.** It asks for size and orientation (default A4 portrait) and fits the diagram to one page or two; when that would print too small, it names the smallest paper that works (A4, A3, A2) before any split.
 - **Stamped and checked for drift.** Each file records the spine's commit (or date) and a hash of every AD. `uv run skills/leonardo-da-vinci/scripts/diagram-drift.py <project-root>` names the ADs that changed and exits 1 when a diagram is stale, so it also works as a CI or pre-commit check.
 - **Exports** (PNG, SVG) need draw.io desktop; the draw.io MCP server (`claude mcp add drawio -- npx -y @drawio/mcp`) adds an in-browser preview. Neither is required.
 

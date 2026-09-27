@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.1 — 2026-09-27
+
+### Leonardo da Vinci
+
+- **Nothing overlaps.** New drawing rule, enforced by the build: every label is measured and wrapped where it was measured, every arrow is routed in its own lane between rows (long arrows through channels clear of boxes and headers), arrow labels sit on their own path clear of everything else, and a box's contents start right of the headers above them. A final check tests every pair of texts, icons, boxes, headers and arrow paths; the build spreads the layout until it's clean and refuses to write a diagram that still collides. Layout is never squeezed to save paper: when the chosen paper would print too small, the build suggests the smallest readable paper (A4, A3, A2; one or two pages).
+- **Stricter checks.** A cited spec or UX section must exist in its file (`SPEC.md §9.9` no longer passes when there is no 9.9). The spine is read more carefully: an AD is defined only by a heading or a bold id, so a sentence that mentions another AD no longer splits or steals it (diagrams of spines that had such lines may report drift once). Data services (databases, storage) are refused inside a compute cluster or its subnet.
+- **Challenge step:** writes the model first and records deferred points as gaps straight away, asks after each round whether to keep going or draw, and on a redraw raises only what changed since the diagram was drawn.
+- **Smaller fixes:** sequence participants ordered by first appearance; the sequence reference carries its own PII/PHI rule; the setup script reports the next free AD number and the user's name and language.
+- **Evaluation cases** (`skills/leonardo-da-vinci/evals/`): three burdeebur.com cases for `bmad-eval-runner` (challenge before drawing, draw two regions by the org rules, name the ADs a drift changed). Running them needs `ANTHROPIC_API_KEY`.
+
+### Kit
+
+- `.gitignore` covers builder review runs (`.analysis/`).
+
 ## 1.4.0 — 2026-09-27
 
 ### Changed

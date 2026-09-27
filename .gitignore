@@ -19,3 +19,6 @@ __pycache__/
 # BMad Builder install (tools for building the kit; not part of it)
 _bmad/
 .claude/
+
+# Builder review runs
+.analysis/
