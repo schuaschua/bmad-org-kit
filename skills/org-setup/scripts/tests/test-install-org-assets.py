@@ -81,6 +81,8 @@ class InstallOrgAssetsTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertFalse((self.root / "docs").exists())
         self.assertFalse((self.root / "_bmad" / "custom").exists())
+        self.assertFalse((self.root / ".claude").exists())
+        self.assertFalse((self.root / ".gitignore").exists())
         self.assertEqual(len(out["standards"]["copied"]), 4)
 
     def test_links_skills_once(self):
@@ -93,6 +95,33 @@ class InstallOrgAssetsTests(unittest.TestCase):
         code, again = run(*args)
         self.assertEqual(again["skills"]["installed"], [])
         self.assertTrue(all(s["reason"] == "already installed from this kit" for s in again["skills"]["skipped"]))
+
+    def test_adds_scrooge_hooks_and_gitignore_once(self):
+        (self.root / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
+        code, out = run(*self.base_args("--token-usage-folder", "{project-root}/reports/tokens"))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["gitignore"]["added"], ["reports/tokens/"])
+        self.assertIn("reports/tokens/", (self.root / ".gitignore").read_text(encoding="utf-8").splitlines())
+        settings = json.loads((self.root / ".claude" / "settings.local.json").read_text(encoding="utf-8"))
+        for event in ("Stop", "SubagentStop"):
+            hook = settings["hooks"][event][0]["hooks"][0]
+            self.assertTrue(hook["async"])
+            self.assertIn(".claude/skills/agent-scrooge/scripts/token_report.py", hook["command"])
+        code, again = run(*self.base_args("--token-usage-folder", "reports/tokens"))
+        self.assertEqual((again["gitignore"]["added"], again["hooks"]["added"]), ([], []))
+        settings = json.loads((self.root / ".claude" / "settings.local.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(settings["hooks"]["Stop"]), 1)
+
+    def test_keeps_other_settings_and_honours_no_hooks(self):
+        claude = self.root / ".claude"
+        claude.mkdir()
+        (claude / "settings.local.json").write_text(json.dumps({"permissions": {"allow": ["Bash(ls)"]}}), encoding="utf-8")
+        code, out = run(*self.base_args("--no-hooks"))
+        self.assertEqual((code, out["hooks"]["added"]), (0, []))
+        code, out = run(*self.base_args())
+        settings = json.loads((claude / "settings.local.json").read_text(encoding="utf-8"))
+        self.assertEqual(settings["permissions"], {"allow": ["Bash(ls)"]})
+        self.assertEqual(out["hooks"]["added"], ["Stop", "SubagentStop"])
 
     def test_rejects_bad_project_key(self):
         args = self.base_args()

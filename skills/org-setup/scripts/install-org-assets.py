@@ -4,7 +4,7 @@
 # ///
 """Install the Org Kit's project assets without overwriting anything.
 
-Runs after merge-config.py and merge-help-csv.py. Four jobs, each reported in
+Runs after merge-config.py and merge-help-csv.py. Six jobs, each reported in
 the JSON printed to stdout:
 
 1. standards   - copy assets/standards/*.md into the standards folder
@@ -16,6 +16,10 @@ the JSON printed to stdout:
                  can merge it by hand
 4. skills      - link (or copy) the kit's skill folders into the project's
                  skills directory (default {project-root}/.claude/skills)
+5. gitignore   - add Scrooge's token usage folder to {project-root}/.gitignore
+6. hooks       - add Scrooge's background ledger refresh (Stop and SubagentStop,
+                 async) to {project-root}/.claude/settings.local.json; an event
+                 that already runs token_report.py is left alone
 
 An existing target file or folder is never overwritten; it is listed under
 `skipped` with the reason. Folder arguments may carry the literal
@@ -50,6 +54,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--assets-dir", default=str(SKILL_ROOT / "assets"), help="Kit assets folder (default: this skill's assets/)")
     parser.add_argument("--skills-source", default=str(SKILL_ROOT.parent), help="Folder holding the kit's skills (default: this skill's parent)")
     parser.add_argument("--skills-target", default=None, help="Project skills folder (default: {project-root}/.claude/skills)")
+    parser.add_argument("--token-usage-folder", default="docs/token_usage", help="token_usage_folder config value, may contain {project-root}")
+    parser.add_argument("--no-hooks", action="store_true", help="Do not add Scrooge's refresh hooks")
     parser.add_argument("--skills-mode", choices=["link", "copy", "skip"], default="link", help="How to install the kit's skills")
     parser.add_argument("--dry-run", action="store_true", help="Report what would happen without writing")
     return parser.parse_args(argv)
@@ -98,6 +104,13 @@ def render_overrides(custom_src: Path, custom_dest: Path, values: dict[str, str]
     return {"written": written, "existing": existing}
 
 
+def _relative(path: Path, project_root: Path) -> str:
+    try:
+        return path.resolve().relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
 def install_skills(source: Path, target: Path, mode: str, dry_run: bool) -> dict:
     installed, skipped = [], []
     if mode == "skip":
@@ -116,6 +129,45 @@ def install_skills(source: Path, target: Path, mode: str, dry_run: bool) -> dict
                 shutil.copytree(skill, dest, ignore=shutil.ignore_patterns("__pycache__", ".memlog.md"))
         installed.append(skill.name)
     return {"mode": mode, "installed": installed, "skipped": skipped, "target": str(target)}
+
+
+HOOK_EVENTS = ("Stop", "SubagentStop")
+REPORT_SCRIPT = "agent-scrooge/scripts/token_report.py"
+
+
+def ensure_gitignore(project_root: Path, folder_rel: str, dry_run: bool) -> dict:
+    path = project_root / ".gitignore"
+    entry = folder_rel.rstrip("/") + "/"
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    if any(line.strip().strip("/") == entry.strip("/") for line in lines):
+        return {"added": [], "skipped": [{"entry": entry, "reason": "already ignored"}], "file": str(path)}
+    if not dry_run:
+        text = "\n".join(lines + ["", "# Scrooge's token ledger (Org Kit)", entry]).lstrip("\n") + "\n"
+        path.write_text(text, encoding="utf-8")
+    return {"added": [entry], "skipped": [], "file": str(path)}
+
+
+def ensure_hooks(project_root: Path, skills_rel: str, dry_run: bool) -> dict:
+    path = project_root / ".claude" / "settings.local.json"
+    try:
+        settings = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except json.JSONDecodeError as exc:
+        return {"added": [], "skipped": [{"file": str(path), "reason": f"not valid JSON ({exc.msg}); left unchanged"}]}
+    script = f'"$CLAUDE_PROJECT_DIR/{skills_rel}/{REPORT_SCRIPT}"'
+    command = f'test -f {script} && python3 {script} "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1 || true'
+    hooks = settings.setdefault("hooks", {})
+    added, skipped = [], []
+    for event in HOOK_EVENTS:
+        groups = hooks.setdefault(event, [])
+        if any("token_report.py" in h.get("command", "") for g in groups for h in g.get("hooks", [])):
+            skipped.append({"event": event, "reason": "already runs token_report.py; left unchanged"})
+            continue
+        groups.append({"hooks": [{"type": "command", "command": command, "async": True, "timeout": 120}]})
+        added.append(event)
+    if added and not dry_run:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    return {"added": added, "skipped": skipped, "file": str(path), "command": command}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -137,6 +189,13 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"status": "error", "message": f"standards folder must be inside the project: {standards}"}))
         return 1
 
+    token_usage = resolve(args.token_usage_folder, project_root)
+    try:
+        token_usage_rel = token_usage.resolve().relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        print(json.dumps({"status": "error", "message": f"token usage folder must be inside the project: {token_usage}"}))
+        return 1
+
     values = {
         "standards_glob": f"{standards_rel}/*.md",
         "jira_site": args.jira_site.rstrip("/"),
@@ -152,6 +211,9 @@ def main(argv: list[str] | None = None) -> int:
             "governance": copy_files(assets / "governance", "*.docx", governance, args.dry_run),
             "overrides": render_overrides(assets / "custom", project_root / "_bmad" / "custom", values, args.dry_run),
             "skills": install_skills(Path(args.skills_source), skills_target, args.skills_mode, args.dry_run),
+            "gitignore": ensure_gitignore(project_root, token_usage_rel, args.dry_run),
+            "hooks": ({"added": [], "skipped": [{"reason": "--no-hooks"}]} if args.no_hooks
+                      else ensure_hooks(project_root, _relative(skills_target, project_root), args.dry_run)),
             "uv_available": shutil.which("uv") is not None,
         }
     except OSError as exc:
