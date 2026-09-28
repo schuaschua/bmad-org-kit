@@ -2,7 +2,7 @@
 
 A BMad module that adds the organisation layer to a BMad Method (`bmm`) project: org standards, governance sign-off, cost estimates, design documents and diagrams, and a count of what the AI-assisted delivery itself cost. Everything is produced inside the BMad flow, from the artifacts BMad already writes: the spine, spec, UX docs, epics and sprint status.
 
-Version 1.9.4 ([CHANGELOG.md](CHANGELOG.md)).
+Version 1.9.5 ([CHANGELOG.md](CHANGELOG.md)).
 
 ## What's in it
 
@@ -103,15 +103,14 @@ Da Vinci is a memory agent. He remembers the principles you held firm on and the
     7. tags;
     8. multi-region or single-region, and high availability;
     9. on-premises integration and its network link;
-    10. how much AI, the organisation's familiarity with it and its data quality standards;
+    10. how much AI, the organisation's familiarity with it, its data quality standards, and whether we're building our own AI/ML models;
     11. the environments and how strict the rules between them are;
     12. event-driven, microservices or monolith;
     13. for a migration, comfort with AI running it;
     14. the security level (Very strict to Relaxed);
     15. the approved stack for the front end, back end, database, CI/CD and AI platform;
     16. a pure web application, a pure mobile application, or hybrid (both); for mobile, which platforms (iOS, Android or both) and native or cross-platform;
-    17. whether there are heavy analytics workloads;
-    18. whether we're building our own AI/ML models.
+    17. whether there are heavy analytics workloads.
   - The answers become a Context table, and the ones that constrain the design become principles (`P-1`, `P-2` ...): testable rules with their reason, pillar and source. Skipped questions stay open.
   - He shows you a summary of every answer, the principles and the open questions, and writes only once you confirm it.
   - Cloud-neutral answers go in `docs/architecture/architecture.md`. Each cloud you name gets its own file beside it (`azure.md`, `aws.md` ...), holding its services, naming, tags, regions, connectivity and principles. Principle numbers are unique across the files.

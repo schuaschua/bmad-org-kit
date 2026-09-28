@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.5 — 2026-09-28
+
+### Da Vinci
+
+- **Question 18 is merged into question 10.** Building our own AI/ML models is now a follow-up to question 10 (AI), beside familiarity and data quality, and is asked only when the project involves AI. There are 17 questions; analytics stays question 17.
+
 ## 1.9.4 — 2026-09-28
 
 ### Da Vinci
