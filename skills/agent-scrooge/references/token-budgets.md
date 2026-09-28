@@ -40,7 +40,7 @@ Budgets come from {user_name}, never from Scrooge. Help them choose with evidenc
 3. **Planning phases still to run.** List the phases the ledger names that haven't finished, and any the plan still needs. Typical ones:
    - `test design`;
    - `governance (Jules)`;
-   - `diagrams & design docs (Leonardo)`;
+   - `architecture docs (Da Vinci)`;
    - `planning changes (correct course)`;
    - `token reporting`;
    - the ops row, `merges, promotions & deploys`.

@@ -1,3 +1,11 @@
+---
+name: design-docs
+description: Write a cited High-Level Design, or a Low-Level Design for a component, as a Word document from the spine, spec and other BMad artifacts, and optionally start from or publish to Confluence
+code: DS
+added: 2026-09-28
+type: prompt
+---
+
 # High-Level and Low-Level Design documents
 
 The result is `<name>.doc.json` and `<name>.docx` in the design documents folder (`design_docs_folder` from `spine.py`, default `docs/architecture/design`): `hld` for the High-Level Design, `lld-<scope>` for a Low-Level Design (`lld-chat-api`, or `lld` for the whole system). The document is a Word file a governance reviewer, an architect or a new developer can read without you in the room, and every statement in it traces back to an AD or a section of a BMad document.
@@ -34,3 +42,5 @@ When the user has an HLD or LLD on Confluence already, or wants the document pub
 ## Drift
 
 `diagram-drift.py` checks documents with the diagrams. A **stale** document cites an AD that changed, or was drawn from a source that changed: update the sections that cite it (Appendix B lists them) and rebuild.
+
+When the document starts from a Confluence page or is published to one, also load `references/confluence.md`.

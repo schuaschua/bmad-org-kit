@@ -195,7 +195,7 @@ def test_final_summary_compares_budgets_with_actuals(logs: Path, tmp_path: Path,
     assert budgets["Epic 2"]["actual_usd"] == pytest.approx(round(4 * per_call, 2))  # PROJ-18 (2.3): four calls
     assert budgets["Epic 2"]["variance_usd"] > 0 and budgets["Epic 9"]["actual_usd"] == 0
     assert budgets["Total"]["budget_usd"] == 28
-    final = list(csv.DictReader((project / "docs" / "token_usage" / "token_usage_summary_final.csv").open()))
+    final = list(csv.DictReader((project / "docs" / "costing" / "token_usage" / "token_usage_summary_final.csv").open()))
     rows = {r["phase"]: r for r in final}
     assert list(final[0])[4:] == ["actual_usd", "budget_usd", "variance_usd", "variance_pct", "suggested_cost_saving"]
     assert rows["Planning: UX design"]["budget_usd"] == "10.0" and rows["Planning: UX design"]["variance_pct"].startswith("-")
@@ -203,7 +203,7 @@ def test_final_summary_compares_budgets_with_actuals(logs: Path, tmp_path: Path,
     assert rows["Planning: test design"]["description"] == "Budgeted, no Claude usage yet"  # budgeted, not spent
     assert rows["Epic 9"]["actual_usd"] == "0.0"
     assert all(r["actual_usd"] == "" for p, r in rows.items() if " · " in p)  # activity rows: cost units only
-    report = (project / "docs" / "token_usage" / "report.md").read_text()
+    report = (project / "docs" / "costing" / "token_usage" / "report.md").read_text()
     assert "## Claude API budget against actual" in report and "| Epic 2 |" in report
 
 

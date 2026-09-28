@@ -4,7 +4,10 @@
 # ///
 """Describe a project's architecture spines, diagrams folder and existing diagrams as JSON.
 
-Without --spine: the spines found at the BMad location, the diagrams folder (org config
+Without --spine: the spines found at the BMad location; the architecture file (`architecture.md` in
+the org config's `architecture_folder`, default docs/architecture), whether it exists yet, and the other
+documents in that folder (per-cloud-provider files such as azure.md and aws.md, and the organisation's
+architecture policies); the diagrams folder (org config
 `diagrams_folder`), the diagrams already in it, the design documents folder (org config
 `design_docs_folder`), its document models and which outlines and Word template it uses, this project's
 `confluence_wiki_url` ("" when it has none), whether draw.io desktop is installed for
@@ -42,6 +45,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 SPINE_GLOB = "_bmad-output/planning-artifacts/architecture/*/ARCHITECTURE-SPINE.md"
+DEFAULT_ARCH_FOLDER = "docs/architecture"
+ARCHITECTURE_FILE = "architecture.md"
 DEFAULT_FOLDER = "docs/architecture/diagrams"
 DEFAULT_DOCS_FOLDER = "docs/architecture/design"
 CONFIG_FILES = ["_bmad/config.toml", "_bmad/custom/config.toml", "_bmad/custom/config.user.toml"]
@@ -73,6 +78,19 @@ def core_settings(root: Path) -> dict:
 def diagrams_folder(root: Path) -> Path:
     """The org config's diagrams_folder (custom overrides win), resolved against the root."""
     return org_folder(root, "diagrams_folder", DEFAULT_FOLDER)
+
+
+def architecture_file(root: Path) -> Path:
+    """The architecture answers and principles Da Vinci agrees before bmad-architecture: <architecture_folder>/architecture.md."""
+    return org_folder(root, "architecture_folder", DEFAULT_ARCH_FOLDER) / ARCHITECTURE_FILE
+
+
+def architecture_docs(main: Path) -> list[str]:
+    """The other documents beside architecture.md: per-provider files (azure.md, aws.md ...) and policies."""
+    folder = main.parent
+    if not folder.is_dir():
+        return []
+    return sorted(p.name for p in folder.iterdir() if p.is_file() and p != main and not p.name.startswith("."))
 
 
 def design_docs_folder(root: Path) -> Path:
@@ -203,9 +221,12 @@ def main(argv: list[str] | None = None) -> int:
         spines = find_spines(root)
         folder = diagrams_folder(root)
         design_folder = design_docs_folder(root)
+        architecture = architecture_file(root)
         result = {
             "status": "success" if spines else "error",
             "spines": [p.relative_to(root).as_posix() for p in spines],
+            "architecture": {"path": architecture.as_posix(), "exists": architecture.is_file(),
+                             "other_docs": architecture_docs(architecture)},
             "diagrams_folder": folder.as_posix(),
             "diagrams": sorted(p.name for p in folder.glob("*.drawio")) if folder.is_dir() else [],
             "design_docs_folder": design_folder.as_posix(),

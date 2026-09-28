@@ -62,6 +62,21 @@ class SpineTests(Project):
         (self.root / SPINE_REL).unlink()
         code, out = run("spine.py", str(self.root))
         self.assertEqual((code, out["status"]), (1, "error"))
+        # the architecture questions come before the spine, so their file is known without one
+        self.assertTrue(out["architecture"]["path"].endswith("docs/architecture/architecture.md"))
+        self.assertFalse(out["architecture"]["exists"])
+
+    def test_architecture_file_and_provider_docs_follow_the_folder(self):
+        (self.root / "_bmad").mkdir(exist_ok=True)
+        (self.root / "_bmad/config.toml").write_text('[modules.org]\narchitecture_folder = "{project-root}/arch"\n',
+                                                     encoding="utf-8")
+        (self.root / "arch/diagrams").mkdir(parents=True)
+        (self.root / "arch/architecture.md").write_text("# Architecture\n", encoding="utf-8")
+        (self.root / "arch/azure.md").write_text("# Azure\n", encoding="utf-8")
+        (self.root / "arch/Cloud policy.pdf").write_bytes(b"%PDF")
+        out = run("spine.py", str(self.root))[1]
+        self.assertEqual(out["architecture"], {"path": (self.root / "arch/architecture.md").as_posix(), "exists": True,
+                                               "other_docs": ["Cloud policy.pdf", "azure.md"]})
 
 
 if __name__ == "__main__":

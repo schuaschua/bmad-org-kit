@@ -54,7 +54,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--assets-dir", default=str(SKILL_ROOT / "assets"), help="Kit assets folder (default: this skill's assets/)")
     parser.add_argument("--skills-source", default=str(SKILL_ROOT.parent), help="Folder holding the kit's skills (default: this skill's parent)")
     parser.add_argument("--skills-target", default=None, help="Project skills folder (default: {project-root}/.claude/skills)")
-    parser.add_argument("--token-usage-folder", default="docs/token_usage", help="token_usage_folder config value, may contain {project-root}")
+    parser.add_argument("--architecture-folder", default="docs/architecture", help="architecture_folder config value (Da Vinci's architecture.md and per-cloud files live here), may contain {project-root}")
+    parser.add_argument("--token-usage-folder", default="docs/costing/token_usage", help="token_usage_folder config value, may contain {project-root}")
     parser.add_argument("--no-hooks", action="store_true", help="Do not add Scrooge's refresh hooks")
     parser.add_argument("--skills-mode", choices=["link", "copy", "skip"], default="link", help="How to install the kit's skills")
     parser.add_argument("--dry-run", action="store_true", help="Report what would happen without writing")
@@ -201,8 +202,17 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"status": "error", "message": f"token usage folder must be inside the project: {token_usage}"}))
         return 1
 
+    architecture = resolve(args.architecture_folder, project_root)
+    try:
+        architecture_rel = architecture.resolve().relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        print(json.dumps({"status": "error", "message": f"architecture folder must be inside the project: {architecture}"}))
+        return 1
+
     values = {
         "standards_glob": f"{standards_rel}/*.md",
+        "architecture_file": f"{architecture_rel}/architecture.md",
+        "architecture_glob": f"{architecture_rel}/*.md",
         "jira_site": args.jira_site.rstrip("/"),
         "jira_project_key": args.jira_project_key,
     }

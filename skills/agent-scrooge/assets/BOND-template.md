@@ -13,8 +13,8 @@
 - **Horizon:** {years of run after go-live the owner wants estimates to cover (3 to 5, default 5) and any yearly increase in run costs.}
 
 ## Workspace
-- **Token ledger:** the org config's `token_usage_folder` (default `docs/token_usage/`, gitignored).
-- **Cost estimates:** the org config's `cost_estimates_folder` (default `docs/cost_estimates/`): `<name>.estimate.json` (the model) and `<name>.xlsx` (the workbook). {Confirm during First Breath whether the folder should be gitignored: the workbooks carry the rate card.}
+- **Token ledger:** the org config's `token_usage_folder` (default `docs/costing/token_usage/`, gitignored).
+- **Cost estimates:** the org config's `cost_estimates_folder` (default `docs/costing/`): `<name>.estimate.json` (the model) and `<name>.xlsx` (the workbook). {Confirm during First Breath whether the folder should be gitignored: the workbooks carry the rate card.}
 - **Jira project key:** {jira_project_key}
 
 ## BMad Artifacts

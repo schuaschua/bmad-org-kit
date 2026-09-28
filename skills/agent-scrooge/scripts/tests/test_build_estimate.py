@@ -30,7 +30,7 @@ SPINE = "_bmad-output/planning-artifacts/architecture/demo/ARCHITECTURE-SPINE.md
 def project(tmp_path: Path) -> Path:
     (tmp_path / "_bmad" / "memory" / "agent-scrooge").mkdir(parents=True)
     (tmp_path / "_bmad" / "config.toml").write_text(
-        '[modules.org]\ncost_estimates_folder = "{project-root}/docs/cost_estimates"\n')
+        '[modules.org]\ncost_estimates_folder = "{project-root}/docs/costing"\n')
     spine = tmp_path / SPINE
     spine.parent.mkdir(parents=True)
     spine.write_text("# Spine\n## AD-1 Hosting\nAKS, environments Dev and Prod.\n")
@@ -68,7 +68,7 @@ def model(**over) -> dict:
 
 
 def write_model(project: Path, m: dict) -> Path:
-    path = project / "docs" / "cost_estimates" / "demo.estimate.json"
+    path = project / "docs" / "costing" / "demo.estimate.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(m))
     return path
@@ -232,7 +232,7 @@ CLAUDE_USD = 18.0
 
 
 def close_out_files(project: Path) -> None:
-    ledger = project / "docs" / "token_usage"
+    ledger = project / "docs" / "costing" / "token_usage"
     ledger.mkdir(parents=True, exist_ok=True)
     (ledger / "claude_usage.csv").write_text(USAGE)
     (ledger / "project_timeline.csv").write_text(TIMELINE)
@@ -305,7 +305,7 @@ def test_close_out_formulas_match(project, capsys):
 
 def test_close_out_memo_currency_and_unpriced(project, capsys):
     close_out_files(project)
-    (project / "docs/token_usage/claude_usage.csv").write_text(
+    (project / "docs/costing/token_usage/claude_usage.csv").write_text(
         USAGE + "story,PROJ-1,1.1,Login,claude-mystery-9,2026-09-07T09:00:00Z,2026-09-07T09:00:00Z,1,5,0,0,0,0,0\n")
     write_model(project, model(close_out={"in_totals": False}))
     _, out = run(project, "demo.estimate.json", capsys=capsys)
@@ -367,7 +367,7 @@ def test_epics_share_the_build_and_date_the_plan(project, capsys):
 def test_epic_formulas_match_and_take_actual_claude_costs(project, capsys):
     formulas = pytest.importorskip("formulas")
     close_out_files(project)
-    usage = project / "docs/token_usage/claude_usage.csv"
+    usage = project / "docs/costing/token_usage/claude_usage.csv"
     usage.write_text(usage.read_text().replace("story,PROJ-1,1.1,Login", "story,PROJ-1,1.1,Login"))
     write_model(project, epics_model(close_out={}))
     _, out = run(project, "demo.estimate.json", capsys=capsys)
@@ -399,7 +399,7 @@ def test_refuses_bad_epics(project, capsys, change, message):
 def test_forecast_vs_actual_per_epic(project, capsys):
     close_out_files(project)
     # the timeline: epic 1 took Mon 7 Sep to Fri 25 Sep (15 working days, planned 21); epic 2 is still running
-    (project / "docs/token_usage/project_timeline.csv").write_text(
+    (project / "docs/costing/token_usage/project_timeline.csv").write_text(
         TIMELINE + "epic,epic-1,1 stories,done,2026-09-07,2026-09-25,19,git\n"
                    "epic,epic-2,1 stories,in-progress,2026-09-28,,,git\n")
     m = epics_model(close_out={})
@@ -426,9 +426,9 @@ def test_forecast_vs_actual_per_epic(project, capsys):
 def test_sprints_timebox_the_delivery(project, capsys):
     close_out_files(project)
     # sprint 1 is Mon 5 Jan to Fri 16 Jan 2026: a story done on the 15th, $2 of Haiku on the 7th, $3 of Opus on the 20th
-    (project / "docs/token_usage/project_timeline.csv").write_text(
+    (project / "docs/costing/token_usage/project_timeline.csv").write_text(
         TIMELINE + "story,1-1-login,epic-1,done,2026-01-05,2026-01-15,11,git\n")
-    (project / "docs/token_usage/claude_usage_daily.csv").write_text(DAILY.splitlines()[0] + "\n"
+    (project / "docs/costing/token_usage/claude_usage_daily.csv").write_text(DAILY.splitlines()[0] + "\n"
         "2026-01-07,story,PROJ-1,1.1,Login,claude-haiku-4-5-20251001,5,2000000,0,0,0,0,0,2\n"
         "2026-01-20,story,PROJ-1,1.1,Login,claude-opus-5-5,2,750000,0,0,0,0,0,3\n")
     m = model(close_out={}, sprints=[{"number": 1, "stories": ["1.1 Login"], "api_budget": 10, "actual_team_cost": 20000}])
@@ -466,9 +466,9 @@ def test_sprints_timebox_the_delivery(project, capsys):
 def test_sprints_past_the_plan_appear_when_work_runs_over(project, capsys):
     close_out_files(project)
     # 63 planned days end in sprint 7 (from Mon 30 Mar, 3 days); a story finished on Mon 13 Apr, the first day of sprint 8
-    (project / "docs/token_usage/project_timeline.csv").write_text(
+    (project / "docs/costing/token_usage/project_timeline.csv").write_text(
         TIMELINE + "story,1-1-login,epic-1,done,2026-01-05,2026-04-13,99,git\n")
-    (project / "docs/token_usage/claude_usage_daily.csv").write_text(DAILY.splitlines()[0] + "\n")
+    (project / "docs/costing/token_usage/claude_usage_daily.csv").write_text(DAILY.splitlines()[0] + "\n")
     m = model(close_out={})
     m["assumptions"].update(start_date="2026-01-05", sprint_days=10)
     write_model(project, m)

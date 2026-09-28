@@ -8,7 +8,7 @@ type: prompt
 
 # Cost estimate
 
-The outcome is a workbook {user_name} can put in front of whoever holds the budget: `<name>.xlsx` in the cost estimates folder (org config `cost_estimates_folder`, default `{project-root}/docs/cost_estimates/`), built by `scripts/build_estimate.py` from a model, `<name>.estimate.json`, that sits beside it. Every line cites where it came from, every price says which meter and when, and everything not yet decided is listed as a gap instead of guessed.
+The outcome is a workbook {user_name} can put in front of whoever holds the budget: `<name>.xlsx` in the cost estimates folder (org config `cost_estimates_folder`, default `{project-root}/docs/costing/`), built by `scripts/build_estimate.py` from a model, `<name>.estimate.json`, that sits beside it. Every line cites where it came from, every price says which meter and when, and everything not yet decided is listed as a gap instead of guessed.
 
 The workbook covers the build and then 3 to 5 years of running the solution. It has:
 

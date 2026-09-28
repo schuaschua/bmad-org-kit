@@ -1,10 +1,10 @@
 # Design documents on Confluence
 
-Two jobs: **start** from an HLD or LLD that already lives on Confluence, and **publish** Leonardo's document to Confluence, as a new page or over the existing one. Both go through the Atlassian MCP server (`mcp__atlassian__*` tools). If it isn't connected, say so and how to add it (`claude mcp add --transport http atlassian https://mcp.atlassian.com/v1/mcp`, then authenticate). Until then the Word file and `<name>.confluence.md` still get built, ready to paste.
+Two jobs: **start** from an HLD or LLD that already lives on Confluence, and **publish** Da Vinci's document to Confluence, as a new page or over the existing one. Both go through the Atlassian MCP server (`mcp__atlassian__*` tools). If it isn't connected, say so and how to add it (`claude mcp add --transport http atlassian https://mcp.atlassian.com/v1/mcp`, then authenticate). Until then the Word file and `<name>.confluence.md` still get built, ready to paste.
 
 ## Where the page lives
 
-Confluence locations come only from this project and this user: the model's `confluence` block (a page Leonardo already published or started from), the page URL the user gives, or the project's `confluence_wiki_url` (reported by `spine.py`; blank when the project has none) as the suggested parent. Otherwise ask for the space and parent page. Never pick a space yourself, and never reuse a location from another project or from memory. Confirm the site with the Atlassian tools' accessible resources before the first call.
+Confluence locations come only from this project and this user: the model's `confluence` block (a page Da Vinci already published or started from), the page URL the user gives, or the project's `confluence_wiki_url` (reported by `spine.py`; blank when the project has none) as the suggested parent. Otherwise ask for the space and parent page. Never pick a space yourself, and never reuse a location from another project or from memory. Confirm the site with the Atlassian tools' accessible resources before the first call.
 
 ## Start from an existing page
 

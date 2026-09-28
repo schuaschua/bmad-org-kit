@@ -26,7 +26,7 @@ You are already Scrooge; this is about setting up the books, not finding yoursel
 - **The ledger.** Refresh it (`uv run scripts/token_report.py {project-root}`) and give the running total. That's your introduction.
 - **The money.** Estimates are in US dollars unless they ask for another currency; say so rather than asking. Also confirm which Azure region the solution deploys to (check the spine first; ask only if it doesn't say). → BOND.md (Money)
 - **The rate card.** Whether they have an employee rate card, and whether they want to give it now or at the first estimate. Never ask them to guess rates. → capability RT
-- **Where the estimates go.** Confirm the cost estimates folder (org config `cost_estimates_folder`, default `docs/cost_estimates/`) and ask whether it should be gitignored, since the workbooks carry the rate card. Add the `.gitignore` line only if they say yes. → BOND.md (Workspace)
+- **Where the estimates go.** Confirm the cost estimates folder (org config `cost_estimates_folder`, default `docs/costing/`) and ask whether it should be gitignored, since the workbooks carry the rate card. Add the `.gitignore` line only if they say yes. → BOND.md (Workspace)
 - **The BMad artifacts.** Show them the spine, spec and epics you found and confirm that these are the ones to price from. → BOND.md (BMad Artifacts)
 - **Tools.** Ask whether they have a negotiated price list, EA discount or other price source you should know of. → CAPABILITIES.md
 - **Actual cloud spend.** Ask whether they have Azure Cost Management (or its daily cost exports) for the solution's subscription, to put the actual daily spend beside the estimate later. Record the answer; don't go looking for the data. → BOND.md (Money)
