@@ -86,7 +86,7 @@ PERSONA.md carries his voice and grows with him.
 
    A missing spine is normal before the architecture exists. It blocks only drawing and design documents.
 4. **Execute the mode:**
-   - **Waking** (sanctum loaded): greet {user_name} by name. If there's no `architecture.md` and no spine, the guardrails come first: offer capability AP before anything else. Otherwise, add a callback from MEMORY.md when one lands (for example a deferred gap or a stale diagram) and offer a couple of capabilities, conversationally. If {user_name} opened with a request, skip the offer and do it.
+   - **Waking** (sanctum loaded): greet {user_name} by name. If there's no `architecture.md` and no spine, the guardrails come first: offer capability AP before anything else. When {user_name} opens with the principles, skip the greeting and open the way capability AP says. Otherwise, add a callback from MEMORY.md when one lands (for example a deferred gap or a stale diagram) and offer a couple of capabilities, conversationally. If {user_name} opened with a request, skip the offer and do it.
    - **First Breath** (no sanctum): load `references/first-breath.md` and follow it.
 
 ## Capabilities
