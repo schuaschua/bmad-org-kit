@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.8.0 — 2026-09-28
+
+### Scrooge McDuck
+
+- **Token budgets (TB).** Once the epics and the sprint plan are done, Scrooge asks for a Claude API budget, in money, for each epic, each sprint (optional) and each planning phase still to run (test design, governance, diagrams, course corrections ...). He proposes figures from the story count and the cost per story so far; the owner sets them.
+  - Who asks: the `bmad-create-epics-and-stories` override, after the Jira sync offer, when no budgets are set yet; the new `bmad-sprint-planning` override, when the sprint plan is done (or offers to review the budgets and add sprint budgets); and Scrooge on waking, when the sprint status exists and no budgets are set.
+  - The budgets live in `_bmad/memory/agent-scrooge/token-budgets.json` (USD, Claude API list prices) and are copied into the estimate model in its reporting currency: `api_budget` on the epics and sprints, and the new `phase_budgets`.
+- **Actual against budget in the token ledger.** `token_usage_summary_final.csv` gains `actual_usd`, `budget_usd`, `variance_usd` and `variance_pct` columns, filled once Claude's prices are saved, and one row per epic, a breakdown of All stories. A budgeted phase with no spend yet still gets a row. `report.md` gets a budget-against-actual table, and `token_report.py` prints a `budgets` list. Refreshed after every turn by the background hooks.
+- **Phase Budgets sheet.** The estimate workbook has a new **Phase Budgets** sheet (`tblPhaseBudgets`, and `<name>.phases.csv`): each phase's budget against its actual from Claude Usage Detail once the close-out sheets are in, with the variance. It's a control figure, never added to a total.
+- **Infrastructure OPEX file.** Every estimate build also writes `<name>.infra_cost.csv` beside the workbook, once the environments are priced from the architecture. It has each priced cloud line, each environment's total and the grand total, as daily, weekly, monthly and annual cost after go-live (annual = monthly × run months per year; year-one list prices). The build's figures carry the totals as `infra_opex`, and Scrooge reports them with the estimate.
+- The close-out and refresh reports name any phase or epic over its budget. The Falcon Portal sample has phase budgets.
+
+### Upgrading
+
+- Setup never overwrites an existing override. `bmad-sprint-planning.toml` is new and is written as is. In a project that already has `_bmad/custom/bmad-create-epics-and-stories.toml`, rerun "setup Org Kit" and merge the suggested `on_complete`.
+
 ## 1.7.0 — 2026-09-28
 
 ### Scrooge McDuck

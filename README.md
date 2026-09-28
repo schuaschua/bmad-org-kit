@@ -4,7 +4,7 @@ A BMad module that adds the organisation layer to any BMad Method (`bmm`) projec
 
 - **Org standards baselines** — `azure.md`, `terraform.md`, `security.md` and `coding-style.md` (org baseline 1.0.0). Projects copy them and extend them with their own names, rules and accepted exceptions.
 - **Blank governance questionnaires** — `TechnicalArchitectureAssessment.docx` (platform questions, then business criticality: 23 questions), `DataGovernancePrivacyAssessment.docx` (10) and `EnterpriseAIRiskAssessment.docx` (20, for solutions that use AI; many drawn from the CBUAE AI guidance note).
-- **BMad customization overrides** — the dev agent and the architecture, build, code-review and test-design workflows load the project's standards as persistent facts; when the architecture workflow finishes it offers Leonardo da Vinci (architecture diagrams), Jules (governance assessments) and Scrooge McDuck (cost estimate); when a story finishes an epic the build (or the epic retrospective) asks the team to rate the AI on it, 1 to 5 and what went wrong when it was poor, and when the build finishes the last story it offers Scrooge's project close-out; epics-and-stories uses the org's hybrid story structure and offers to sync to the project's Jira.
+- **BMad customization overrides** — the dev agent and the architecture, build, code-review and test-design workflows load the project's standards as persistent facts; when the architecture workflow finishes it offers Leonardo da Vinci (architecture diagrams), Jules (governance assessments) and Scrooge McDuck (cost estimate); when a story finishes an epic the build (or the epic retrospective) asks the team to rate the AI on it, 1 to 5 and what went wrong when it was poor, and when the build finishes the last story it offers Scrooge's project close-out; epics-and-stories uses the org's hybrid story structure and offers to sync to the project's Jira; once the epics and the sprint plan are done, epics-and-stories and sprint planning offer Scrooge's token budgets (a Claude API budget per epic, sprint and remaining phase).
 - **Scrooge McDuck (`agent-scrooge`), Token Usage Accountant and Cost Estimator** — a memory agent. Counts every API call in the project's Claude Code logs, attributes it to a story (by the project's Jira key) or planning phase, a step and an activity, writes a gitignored ledger, and sternly audits it for savings; background hooks keep the ledger current. Prices the solution from whatever the BMad work has produced so far (spine, spec, epics, plus anything you tell it) into an Excel workbook: a sheet per environment at Azure list prices, an employee rate card, other costs, and an overall summary where days of delivery, employees and mandays are inputs you can change.
 - **Leonardo da Vinci (`leonardo-da-vinci`), Architecture Diagrams and Design Documents** — writes cited High-Level and Low-Level Design Word documents, and draws draw.io diagrams (C4 context, C4 containers, cloud deployment with Azure and Kubernetes icons, data flow with trust boundaries and PII/PHI, sequence for a named flow) from the project's architecture spine, spec and UX docs only. Every box and arrow cites its AD or section, gaps are listed rather than drawn, it challenges the architecture before drawing, and a drift check flags diagrams older than their spine.
 - **Jules (`agent-jules`), IT Governance** — drafts, coaches and routes the Technical Architecture, Data Governance & Privacy and Enterprise AI Risk Assessment answers for the Product Lead and Tech Lead from the project's BMad artifacts, replies to reviewer comments and checks answers for drift. Jules asks whether your organisation has its own questionnaire templates (put them in the governance folder), and ports answers to similar questions over from the three standard ones. Jules also considers the regulatory documents of the region the solution is developed in, chosen at setup, citing the clause it relies on and checking each document's date before relying on it.
@@ -20,7 +20,7 @@ BMad Method takes a project from idea to working code: brief, spec, architecture
 - **It challenges before it produces.** Leonardo, Scrooge and Jules each put the gaps, contradictions and risky choices to you first, most consequential first. Answers you approve become AD text in the spine, so the architecture itself improves, not just the document.
 - **It notices when things change.** Each diagram, design document and estimate records which version of its sources it was built from. Drift checks name the decisions that changed since then, so a stale diagram or an answer resting on an old decision doesn't go unnoticed.
 - **Standards live in BMad's own workflows.** The org's standards are loaded as persistent facts into the dev agent and the architecture, build, code-review and test-design workflows through BMad's customisation overrides. BMad itself isn't forked, so a BMad update keeps working.
-- **It shows up at the right moment.** When the architecture is done, you're offered the architecture diagrams (Leonardo), the governance assessments (Jules) and the cost estimate (Scrooge). When an epic finishes, the team rates the AI on it. When the last story is delivered, you're offered the project close-out. Epics and stories can sync to Jira, and HLD/LLD documents can be published to Confluence.
+- **It shows up at the right moment.** When the architecture is done, you're offered the architecture diagrams (Leonardo), the governance assessments (Jules) and the cost estimate (Scrooge). When the epics and sprint plan are done, you're asked for the token budgets. When an epic finishes, the team rates the AI on it. When the last story is delivered, you're offered the project close-out. Epics and stories can sync to Jira, and HLD/LLD documents can be published to Confluence.
 - **It measures itself.** Scrooge counts every Claude API call the project made, attributed to its story, planning phase, step and activity, and prices it at Anthropic's list prices. The close-out records how long each BMad stage and epic took. You get evidence of what AI-assisted delivery cost and where it was spent, not an impression, and the data feeds a Power BI dashboard.
 - **People decide; agents prepare.** The agents draft, explain and route. The Product Lead and Tech Lead sign governance answers, and leads are referred to by role, never by name. Nothing is applied to a document, published to Confluence, synced to Jira or sent to governance without an explicit yes. Cloud and Claude prices come from their public price lists, with the date they were read, and day rates only ever come from your own rate card.
 - **Org-owned, project-extended.** Standards baselines, questionnaires, design-document outlines and Word templates are the organisation's defaults. Each project copies them and extends them, and the kit never overwrites a project's own version. Your own governance templates can replace the standard ones, and answers to similar questions port over. Regional regulation (for example the CBUAE's AI guidance) is a setting, and cited clause by clause.
@@ -106,6 +106,7 @@ Run these once after installing BMad, the kit and setup, and again after each ki
    ls _bmad/custom/
    grep -l "leonardo-da-vinci" _bmad/custom/bmad-architecture.toml
    grep -l "ai_feedback.py"    _bmad/custom/bmad-build.toml _bmad/custom/bmad-build-auto.toml _bmad/custom/bmad-retrospective.toml
+   grep -l "token budgets"     _bmad/custom/bmad-create-epics-and-stories.toml _bmad/custom/bmad-sprint-planning.toml
    ```
 
    Every file should be listed. A missing one means that prompt won't appear.
@@ -122,9 +123,11 @@ Run these once after installing BMad, the kit and setup, and again after each ki
    | When | What you should be asked |
    | --- | --- |
    | `bmad-architecture` finishes | Which of Leonardo (diagrams), Jules (governance assessments) and Scrooge (cost estimate) you'd like, once |
+   | `bmad-create-epics-and-stories` finishes | After the Jira sync offer, whether Scrooge should set the token budgets (only if none are set yet) |
+   | `bmad-sprint-planning` finishes | Whether Scrooge should set the token budgets, or review them and add sprint budgets |
    | `bmad-build` finishes the story that completes an epic | Rate the AI on that epic, 1 to 5; if 1 or 2, what went wrong (one or more categories, "Other" in your words) |
    | `bmad-retrospective` finishes | The same rating, for any finished epic nobody has rated |
-   | Scrooge wakes | The same rating, for any finished epic still unrated (for example one finished by `bmad-build-auto`, which never asks) |
+   | Scrooge wakes | The same rating, for any finished epic still unrated (for example one finished by `bmad-build-auto`, which never asks); then the token budgets, if the sprint plan exists and none are set |
    | `bmad-build` finishes the last story | Whether Scrooge should close out the project |
 
    After you rate an epic, it has a row in `_bmad/memory/agent-scrooge/ai-feedback.csv`. Commit that file with the project.
@@ -165,6 +168,7 @@ Ask Scrooge for a cost estimate ("what will this cost to build and run?", "price
     - Forecast: planned days, planned stories, team and infra at their daily cost, and an optional Claude API budget.
     - Actual, up to the last activity: days worked, stories done, Claude API cost on those days, actual cost (timesheets or days worked) and the variance.
     - Overrun sprints appear by themselves.
+  - **Phase Budgets:** the Claude API budget for each planning phase still to run (test design, governance, diagrams ...) against its actual from the ledger. A control figure, never in a total.
   - **Multi-Year:** the build, then Year 1 to Year 5: revenue, every cost, contingency, net, cumulative net, payback year and return on cost. Years past the horizon show zero.
   - **Revenue:** yearly revenue per stream, from you or a cited business case, never estimated.
   - **Run Costs:** recurring yearly costs such as support contracts and licences.
@@ -172,12 +176,16 @@ Ask Scrooge for a cost estimate ("what will this cost to build and run?", "price
   - **Rate Card**, **Other Costs** (one-off) and **Sources & Gaps**.
 
   Every total is a formula, so changing a blue cell recalculates it in Excel.
+- **Token budgets.** Once the epics and the sprint plan are done, Scrooge asks you for a Claude API budget, in money, for each epic, each sprint (optional) and each planning phase still to run. He proposes figures from the stories and the spend so far, and you set them. They're kept in `_bmad/memory/agent-scrooge/token-budgets.json` (USD, Claude API list prices) and copied into the estimate. Actual against budget then shows in two places:
+  - the ledger's final summary, `token_usage_summary_final.csv`, which gains `actual_usd`, `budget_usd`, `variance_usd` and `variance_pct` columns and one row per epic. `report.md` gets a budget-against-actual table. Both are refreshed after every turn.
+  - the workbook's Epics, Sprints and Phase Budgets sheets.
 - **Kept current.** `uv run skills/agent-scrooge/scripts/build_estimate.py <project-root> <name>.estimate.json --drift` names the cited files and rate card that changed since the build. A rebuild refuses to overwrite a workbook you edited by hand; Scrooge carries your edits into the model first.
 
 - **Close-out.** At the end of the project Scrooge records how long it took: each BMad stage (from git), each custom agent (from its sanctum), each epic and story (from the sprint status's git history), start to finish in calendar and working days. He adds the total Claude API calls, costed at the list prices read from Anthropic's pricing page, as the Claude Usage, Claude Prices and Project Timeline sheets and a line in the cost summary (a memo when Claude Code was on a subscription).
 - **Dashboards.** Every data range is a named Excel table (`tblCostSummary`, `tblTeam`, `tblEnv<name>`, `tblClaudeUsage`, `tblTimeline` ...) for Power BI or Excel Online. Power BI reads the values Excel last saved, so open and save a fresh build once, or use the plain-value CSVs:
   - `<name>.facts.csv` beside the workbook: every revenue and cost line per period (Build, Year 1..5).
-  - `<name>.epics.csv` and `<name>.sprints.csv` beside it: one row per epic or sprint, forecast and actual.
+  - `<name>.infra_cost.csv` beside it: the infrastructure OPEX after go-live. One row per priced cloud line, each environment's total and the grand total, as daily, weekly, monthly and annual cost. Written as soon as the architecture is priced.
+  - `<name>.epics.csv` and `<name>.sprints.csv` beside it: one row per epic or sprint, forecast and actual. `<name>.phases.csv`: each planning phase's Claude API budget and actual.
   - In the token usage folder: `claude_usage_daily.csv` (Claude calls, tokens and cost per day, refreshed after every turn), `claude_usage.csv` and `project_timeline.csv`.
 - **Actual cloud spend.** Estimates use list prices. Scrooge asks whether you have Azure Cost Management, or its daily exports, so the actual daily spend can sit beside the estimate later.
 
@@ -227,6 +235,7 @@ To add a region, add a `[regions.<code>]` table to `skills/agent-jules/assets/re
 | RT | agent-scrooge | Employee rate card |
 | PC | agent-scrooge | Project close-out: duration, Claude API calls and cost |
 | EF | agent-scrooge | End-of-epic AI feedback (1 to 5, and what went wrong) |
+| TB | agent-scrooge | Token budgets per epic, sprint and phase, against actual |
 | DG | leonardo-da-vinci | Draw an architecture diagram |
 | DS | leonardo-da-vinci | High-Level or Low-Level Design document |
 | DD | leonardo-da-vinci | Diagram and document drift check |
@@ -236,7 +245,7 @@ To add a region, add a `[regions.<code>]` table to `skills/agent-jules/assets/re
 - Update the kit through the BMad installer (it refreshes the `org` config and help entries), then run `org-setup` again for any new project files. Then merge any override setup lists as waiting, and run the checks in [Check it's working](#check-its-working).
 - Standards, questionnaires and overrides that already exist in the project are left alone, so project extensions survive. To adopt a newer baseline, diff your copy against `skills/org-setup/assets/standards/` and merge by hand; each baseline carries its version in its header.
 - Jules's sanctum (`_bmad/memory/agent-jules/`) is never touched by an update. Sanctum files and its copies of the capability prompts are created at First Breath, so template and prompt changes reach an existing sanctum only by hand; CHANGELOG.md lists what to carry over for each release.
-- Scrooge's sanctum and project data (`_bmad/memory/agent-scrooge/`: identity files, `stories.json`, `savings.json`, `rate-card.json`) are never touched by an update. Its capability prompts and scripts stay in the skill, so they update with the kit without a migration.
+- Scrooge's sanctum and project data (`_bmad/memory/agent-scrooge/`: identity files, `stories.json`, `savings.json`, `rate-card.json`, `token-budgets.json`) are never touched by an update. Its capability prompts and scripts stay in the skill, so they update with the kit without a migration.
 
 ## Developing the kit
 

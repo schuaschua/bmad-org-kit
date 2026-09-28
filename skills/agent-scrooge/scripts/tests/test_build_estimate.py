@@ -118,7 +118,7 @@ def test_workbook_sheets_and_formulas(project, capsys):
     code, out = run(project, "demo.estimate.json", capsys=capsys)
     assert code == 0, out
     wb = openpyxl.load_workbook(out["workbook"])
-    assert wb.sheetnames == ["Overall", "Multi-Year", "Epics", "Sprints", "Revenue", "Rate Card", "Other Costs", "Run Costs", "Dev", "Prod",
+    assert wb.sheetnames == ["Overall", "Multi-Year", "Epics", "Sprints", "Phase Budgets", "Revenue", "Rate Card", "Other Costs", "Run Costs", "Dev", "Prod",
                              "Sources & Gaps"]
     ov = wb["Overall"]
     cells = {c.value: c for row in ov.iter_rows() for c in row if isinstance(c.value, str)}
@@ -477,3 +477,67 @@ def test_sprints_past_the_plan_appear_when_work_runs_over(project, capsys):
     assert [x["days"] for x in sprints] == [10, 10, 10, 10, 10, 10, 3, 0]
     assert [x["days_worked"] for x in sprints[6:]] == [10, 1]
     assert sprints[7]["forecast_total"] == 0 and sprints[7]["stories_done"] == 1 and sprints[7]["cost_variance"] > 0
+
+
+PHASES = [{"phase": "Architecture", "api_budget": 20, "cite": "owner: Delivery Manager, 2026-09-28"},
+          {"phase": "test design", "api_budget": 5, "cite": "owner: Delivery Manager, 2026-09-28"}]
+
+
+def test_phase_budgets_against_the_ledger(project, capsys):
+    write_model(project, model(phase_budgets=PHASES))
+    _, out = run(project, "demo.estimate.json", "--check", capsys=capsys)
+    assert out["figures"]["phase_budgets"][0]["api_actual"] is None  # no close-out: budget only
+    close_out_files(project)
+    write_model(project, model(phase_budgets=PHASES, close_out={}))
+    code, out = run(project, "demo.estimate.json", capsys=capsys)
+    assert code == 0, out
+    arch, test = out["figures"]["phase_budgets"]
+    assert (arch["api_actual"], arch["variance"], arch["variance_pct"]) == (16.0, -4.0, -0.2)  # ledger: architecture
+    assert (test["api_actual"], test["variance"]) == (0.0, -5.0)
+    assert out["figures"]["grand_total"]["total"] == pytest.approx((190317.15 + CLAUDE_USD) * 1.1, abs=0.01)  # not added
+    wb = openpyxl.load_workbook(out["workbook"])
+    pb = wb["Phase Budgets"]
+    assert "tblPhaseBudgets" in pb.tables and pb.tables["tblPhaseBudgets"].ref == "A4:F9"
+    assert (pb["A5"].value, pb["B5"].value) == ("Architecture", 20)
+    assert "SUMIFS" in pb["C5"].value
+    phases = Path(out["workbook"]).with_name("demo.phases.csv").read_text().splitlines()
+    assert phases[1] == "demo,USD,Architecture,20,16.0,-4.0,-0.2"
+    formulas = pytest.importorskip("formulas")
+    sol = formulas.ExcelModel().loads(out["workbook"]).finish().calculate()
+    values = {str(k).split("]")[-1].upper(): v.value[0][0] for k, v in sol.items() if hasattr(v, "value")}
+    assert values["PHASE BUDGETS'!C5"] == pytest.approx(16.0)
+    assert values["PHASE BUDGETS'!D5"] == pytest.approx(-4.0)
+
+
+@pytest.mark.parametrize(("budgets", "message"), [
+    ([{"phase": "spec", "api_budget": 1, "cite": "owner: x"}, {"phase": "Spec", "api_budget": 2, "cite": "owner: x"}],
+     "budgeted twice"),
+    ([{"phase": "spec", "api_budget": -1, "cite": "owner: x"}], "api_budget is zero or more"),
+    ([{"phase": "", "api_budget": 1, "cite": "owner: x"}], "phase is the planning phase"),
+    ([{"phase": "spec", "api_budget": 1}], "no cite"),
+])
+def test_refuses_bad_phase_budgets(project, capsys, budgets, message):
+    write_model(project, model(phase_budgets=budgets))
+    code, out = run(project, "demo.estimate.json", capsys=capsys)
+    assert code == 1 and any(message in e for e in out["errors"]), out["errors"]
+
+
+def test_infra_cost_csv_has_daily_weekly_monthly_and_annual_opex(project, capsys):
+    write_model(project, model())
+    code, out = run(project, "demo.estimate.json", capsys=capsys)
+    assert code == 0, out
+    rows = list(csv.DictReader(Path(out["infra_cost"]).open()))
+    assert Path(out["infra_cost"]).name == "demo.infra_cost.csv"
+    assert list(rows[0])[:4] == ["estimate", "currency", "line", "environment"]
+    dev = next(r for r in rows if r["line"] == "item" and r["environment"] == "Dev")
+    monthly = 0.235 * 2 * 730  # always-on: hours per month
+    assert float(dev["monthly"]) == pytest.approx(monthly, abs=0.01)
+    assert float(dev["daily"]) == pytest.approx(monthly * 12 / 365, abs=0.01)
+    assert float(dev["weekly"]) == pytest.approx(monthly * 12 / 365 * 7, abs=0.01)
+    assert float(dev["annual"]) == pytest.approx(monthly * 6, abs=0.01)  # Dev runs 6 months a year after go-live
+    envs = [r for r in rows if r["line"] == "environment total"]
+    assert [r["environment"] for r in envs] == ["Dev", "Prod"]
+    total = rows[-1]
+    assert total["line"] == "total"
+    assert float(total["annual"]) == pytest.approx(sum(x["run_per_year"] for x in out["figures"]["environments"]), abs=0.05)
+    assert out["figures"]["infra_opex"]["annual"] == pytest.approx(float(total["annual"]), abs=0.01)

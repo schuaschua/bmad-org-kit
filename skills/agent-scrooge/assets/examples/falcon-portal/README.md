@@ -11,8 +11,10 @@ A made-up project, so you can see what Scrooge McDuck's cost estimate and close-
 
 | File | What it is |
 | --- | --- |
-| `falcon-portal.xlsx` | The workbook: Overall (inputs, delivery team, run support, cost summary), Multi-Year (build and five years: revenue, costs, net, payback), Revenue, Rate Card, Other Costs, Run Costs, Dev/Test/Prod, Claude Prices, Claude Usage (+ Detail, Daily), Project Timeline, Sources & Gaps |
+| `falcon-portal.xlsx` | The workbook: Overall (inputs, delivery team, run support, cost summary), Multi-Year (build and five years: revenue, costs, net, payback), Epics, Sprints, Phase Budgets (Claude API budget against actual per planning phase), Revenue, Rate Card, Other Costs, Run Costs, Dev/Test/Prod, Claude Prices, Claude Usage (+ Detail, Daily), Project Timeline, Sources & Gaps |
 | `falcon-portal.facts.csv` | Every revenue and cost line per period (Build, Year 1..5) as plain values, for Power BI |
+| `falcon-portal.epics.csv`, `.sprints.csv`, `.phases.csv` | Forecast against actual per epic and sprint, and each planning phase's Claude API budget against actual |
+| `falcon-portal.infra_cost.csv` | Infrastructure OPEX after go-live per cloud line, environment and in total: daily, weekly, monthly, annual |
 | `falcon-portal.estimate.json` | The model the workbook is built from; each line cites its source |
 | `_bmad-output/` | The sample spine and spec the model cites |
 | `token_usage/` | The sample Claude usage ledger (per work item and per day) and project timeline for the close-out |

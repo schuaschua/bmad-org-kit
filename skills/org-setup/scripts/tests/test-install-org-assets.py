@@ -54,12 +54,16 @@ class InstallOrgAssetsTests(unittest.TestCase):
         for name in ["TechnicalArchitectureAssessment.docx", "DataGovernancePrivacyAssessment.docx", "EnterpriseAIRiskAssessment.docx"]:
             self.assertTrue((self.root / "docs" / "governance" / name).is_file(), name)
         custom = self.root / "_bmad" / "custom"
-        self.assertEqual(len(out["overrides"]["written"]), 8)
+        self.assertEqual(len(out["overrides"]["written"]), 9)
         dev = tomllib.loads((custom / "bmad-agent-dev.toml").read_text(encoding="utf-8"))
         self.assertEqual(dev["agent"]["persistent_facts"], ["file:docs/standards/*.md"])
         epics = tomllib.loads((custom / "bmad-create-epics-and-stories.toml").read_text(encoding="utf-8"))
         self.assertIn("Jira project PROJ (https://example.atlassian.net)", epics["workflow"]["on_complete"])
         self.assertEqual(len(epics["workflow"]["persistent_facts"]), 1)
+        self.assertIn("token budgets", epics["workflow"]["on_complete"])
+        sprints = tomllib.loads((custom / "bmad-sprint-planning.toml").read_text(encoding="utf-8"))
+        self.assertIn("Scrooge", sprints["workflow"]["on_complete"])
+        self.assertIn("token-budgets.json", sprints["workflow"]["on_complete"])
         arch = tomllib.loads((custom / "bmad-architecture.toml").read_text(encoding="utf-8"))
         self.assertEqual(arch["workflow"]["persistent_facts"], ["file:docs/standards/*.md"])
         self.assertIn("Jules", arch["workflow"]["on_complete"])

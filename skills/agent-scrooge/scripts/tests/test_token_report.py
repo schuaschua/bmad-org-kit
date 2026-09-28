@@ -137,7 +137,7 @@ def test_main_writes_six_files_and_a_story_line(logs: Path, tmp_path: Path, caps
     sonnet = [r for r in daily if r["model"] == "claude-sonnet-5"]
     assert sonnet and all(float(r["cost_usd"]) > 0 for r in sonnet)
     total = int(final[-1][1])
-    top_level = sum(int(r[1]) for r in final[1:-1] if " · " not in r[0])
+    top_level = sum(int(r[1]) for r in final[1:-1] if " · " not in r[0] and not r[0].startswith("Epic "))
     assert abs(top_level - total) <= len(final)  # rows are rounded one by one
 
 
@@ -149,7 +149,7 @@ def test_missing_log_folder_is_an_error(tmp_path: Path, capsys) -> None:
 def test_final_summary_has_a_saving_for_every_row(logs: Path) -> None:
     rows = token_report.summary_rows(token_report.collect(logs, STORIES), STORIES, combine_stories=True)
     assert rows[0][-1] == "suggested_cost_saving"
-    assert all(len(r) == 5 and r[4] for r in rows[1:])
+    assert all(len(r) == 9 and r[8] for r in rows[1:])
     per_story = token_report.summary_rows(token_report.collect(logs, STORIES), STORIES, combine_stories=False)
     assert all(len(r) == 4 for r in per_story)
 
@@ -174,3 +174,42 @@ def test_without_a_key_only_story_numbers_are_matched(logs: Path) -> None:
     assert token_report.key_pattern(None, STORIES).pattern.startswith(r"\b(PROJ)")
     assert token_report.story_from_text("PROJ-7 · build", {}, None) is None
     assert token_report.story_from_text("PROJ-7 · build", {}, token_report.key_pattern("PROJ", {})) == "PROJ-7"
+
+
+def test_final_summary_compares_budgets_with_actuals(logs: Path, tmp_path: Path, capsys) -> None:
+    project = tmp_path / "project"
+    data = project / "_bmad" / "memory" / "agent-scrooge"
+    data.mkdir(parents=True)
+    (data / "stories.json").write_text(json.dumps({"stories": {k: list(v) for k, v in STORIES.items()}}))
+    # prices scaled up so a synthetic call costs dollars, not fractions of a cent
+    (data / "claude-prices.json").write_text(json.dumps({"models": {"claude-sonnet-5": {
+        "input": 20000, "cache_write_5m": 25000, "cache_write_1h": 40000, "cache_read": 2000, "output": 100000}}}))
+    (data / "token-budgets.json").write_text(json.dumps(
+        {"currency": "USD", "phases": {"UX design": 10, "test design": 5}, "epics": {"2": 10, "9": 3}}))
+    assert token_report.main([str(project), "--logs", str(logs)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    budgets = {b["row"]: b for b in result["budgets"]}
+    # each call: 1 input, 1000 cache read, 100 cache write (5m), 10 output at the prices above
+    per_call = (1 * 20000 + 1000 * 2000 + 100 * 25000 + 10 * 100000) / 1e6  # 5.52
+    assert budgets["Planning: ux design"]["actual_usd"] == pytest.approx(round(per_call, 2))
+    assert budgets["Epic 2"]["actual_usd"] == pytest.approx(round(4 * per_call, 2))  # PROJ-18 (2.3): four calls
+    assert budgets["Epic 2"]["variance_usd"] > 0 and budgets["Epic 9"]["actual_usd"] == 0
+    assert budgets["Total"]["budget_usd"] == 28
+    final = list(csv.DictReader((project / "docs" / "token_usage" / "token_usage_summary_final.csv").open()))
+    rows = {r["phase"]: r for r in final}
+    assert list(final[0])[4:] == ["actual_usd", "budget_usd", "variance_usd", "variance_pct", "suggested_cost_saving"]
+    assert rows["Planning: UX design"]["budget_usd"] == "10.0" and rows["Planning: UX design"]["variance_pct"].startswith("-")
+    assert rows["Epic 2"]["budget_usd"] and rows["Epic 3"]["budget_usd"] == ""  # epic 3 has spend but no budget
+    assert rows["Planning: test design"]["description"] == "Budgeted, no Claude usage yet"  # budgeted, not spent
+    assert rows["Epic 9"]["actual_usd"] == "0.0"
+    assert all(r["actual_usd"] == "" for p, r in rows.items() if " · " in p)  # activity rows: cost units only
+    report = (project / "docs" / "token_usage" / "report.md").read_text()
+    assert "## Claude API budget against actual" in report and "| Epic 2 |" in report
+
+
+def test_budgets_without_prices_say_so(logs: Path, tmp_path: Path, capsys) -> None:
+    data = tmp_path / "_bmad" / "memory" / "agent-scrooge"
+    data.mkdir(parents=True)
+    (data / "token-budgets.json").write_text(json.dumps({"phases": {"test design": 5}}))
+    assert token_report.main([str(tmp_path), "--logs", str(logs), "-o", str(tmp_path / "o")]) == 0
+    assert "claude_prices.py --save" in json.loads(capsys.readouterr().out)["budgets"]

@@ -454,8 +454,25 @@
       ]
     }
   ],
+  "phase_budgets": [
+    {
+      "phase": "governance (Jules)",
+      "api_budget": 40,
+      "cite": "owner: Delivery Manager (synthetic), 2026-09-28"
+    },
+    {
+      "phase": "diagrams & design docs (Leonardo)",
+      "api_budget": 25,
+      "cite": "owner: Delivery Manager (synthetic), 2026-09-28"
+    },
+    {
+      "phase": "test design",
+      "api_budget": 30,
+      "cite": "owner: Delivery Manager (synthetic), 2026-09-28"
+    }
+  ],
   "stamp": {
-    "built": "2026-09-28T10:57:59",
+    "built": "2026-09-28T14:45:51",
     "files": {
       "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md": "888bd47cdcac5428251a930fa8a6839821f5989c80b9b54f4689896b0ab68829",
       "_bmad-output/planning-artifacts/epics.md": "68f432fd10b0867a4ea5ee58e2523b7bb34f0f11d6ce37e5f02493da89ab8aac",
@@ -465,6 +482,6 @@
       "token_usage/project_timeline.csv": "08bf946524c11d8897ee741e73ec10edd556ed434dcb770cff218a3db80ff64d",
       "token_usage/claude_usage_daily.csv": "f12be0ce39fbf1661949646fad9c3294784d1513ba5fc1e3253fd1103ec55361"
     },
-    "workbook_mtime": 1790564279.3597043
+    "workbook_mtime": 1790577951.5162706
   }
 }
