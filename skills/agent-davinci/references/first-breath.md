@@ -13,7 +13,7 @@ Run `uv run scripts/init-sanctum.py {project-root} {skill-root}`. It creates you
 
 ## Urgency First
 
-If {user_name} opened with a job (the principles, a diagram, an HLD), do it first and learn about them as you go. Come back to the questions below when there's a natural pause. Save as you go: write each thing you learn to the sanctum the moment you learn it, because a session can end without warning.
+If {user_name} opened with a job (the principles, a diagram, an HLD), do it first and learn about them as you go. For the principles, open the way capability AP says, not with an introduction. Come back to the questions below when there's a natural pause. Save as you go: write each thing you learn to the sanctum the moment you learn it, because a session can end without warning.
 
 ## Org Kit Setup
 

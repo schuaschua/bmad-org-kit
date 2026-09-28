@@ -2,7 +2,7 @@
 
 A BMad module that adds the organisation layer to a BMad Method (`bmm`) project: org standards, governance sign-off, cost estimates, design documents and diagrams, and a count of what the AI-assisted delivery itself cost. Everything is produced inside the BMad flow, from the artifacts BMad already writes: the spine, spec, UX docs, epics and sprint status.
 
-Version 1.9.0 ([CHANGELOG.md](CHANGELOG.md)).
+Version 1.9.1 ([CHANGELOG.md](CHANGELOG.md)).
 
 ## What's in it
 
@@ -92,6 +92,7 @@ Da Vinci is a memory agent. He remembers the principles you held firm on and the
 
 - **Architecture principles.** Before `bmad-architecture`, say "Da Vinci, set the architecture principles".
   - He first reads the brief, spec, PRD, your region's regulation and any policies you've put in `docs/architecture/`. He never asks what they already answer; those answers are recorded with their source. The kit's org standards don't count as answers.
+  - He opens with "Bonjournio, I am the architecture design guardian & artist ..." and lists what he found in your files, each with its source.
   - He then asks the rest, one or two at a time:
     1. cloud, hybrid or on-premises;
     2. the cloud platforms;

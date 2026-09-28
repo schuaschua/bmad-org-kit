@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.1 — 2026-09-28
+
+### Da Vinci
+
+- **The principles session opens with a set introduction.** Da Vinci reads your files first, then opens with: "Bonjournio, I am the architecture design guardian & artist. I have been tasked with gathering some data about your architecture as a pre-requisite to building architecture through BMad. I have rummaged through your files and found:". After that comes a short list of what he found, each item with its source. He then asks only what's still open. The opening replaces his usual greeting, including at a first meeting.
+
+### Troubleshooting
+
+- **Stale installer cache.** If you once installed the kit from the old `darrel1234/bmad-org-kit` URL, the BMad installer may read that cached copy's `module.yaml` in place of the current one. Da Vinci is then missing from the `[agents.*]` roster in `_bmad/config.toml`, and `architecture_folder` is missing from `[modules.org]`. Delete `~/.bmad/cache/custom-modules/github.com/darrel1234` and rerun the installer.
+
 ## 1.9.0 — 2026-09-28
 
 ### Da Vinci (was Leonardo da Vinci)

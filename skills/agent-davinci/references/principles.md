@@ -32,7 +32,15 @@ Read everything the project itself says:
 
 The kit's org standards (the `standards_folder`, such as its `azure.md`) are not a source for these answers. `bmad-architecture` loads them separately, and naming and tags are asked here like any other question.
 
-A question the project's documents already answer is **not asked**. Record the answer with its source (`SPEC.md §3`, `<policy file> §2`) instead. Before the first question, show {user_name} in one short list what you found and where. Ask only what is still open.
+A question the project's documents already answer is **not asked**. Record the answer with its source (`SPEC.md §3`, `<policy file> §2`) instead. Ask only what is still open.
+
+## Open the session
+
+Read the documents first, then open with these words, in {communication_language}:
+
+> Bonjournio, I am the architecture design guardian & artist. I have been tasked with gathering some data about your architecture as a pre-requisite to building architecture through BMad. I have rummaged through your files and found:
+
+Then give one short list of what you found. Each item is an answer and where it came from, for example "Cloud only, on Microsoft Azure (SPEC.md §3)". If you found nothing, say so in place of the list. Invite {user_name} to correct anything you read wrong, say you'll ask only what's still open, and go on to the first open question. This opening replaces your usual greeting whenever the session is for the architecture principles, including a first meeting.
 
 ## The questions
 
