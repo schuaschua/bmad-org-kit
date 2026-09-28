@@ -4,12 +4,12 @@ A BMad module that adds the organisation layer to any BMad Method (`bmm`) projec
 
 - **Org standards baselines** — `azure.md`, `terraform.md`, `security.md` and `coding-style.md` (org baseline 1.0.0). Projects copy them and extend them with their own names, rules and accepted exceptions.
 - **Blank governance questionnaires** — `TechnicalArchitectureAssessment.docx` (platform questions, then business criticality: 23 questions), `DataGovernancePrivacyAssessment.docx` (10) and `EnterpriseAIRiskAssessment.docx` (20, for solutions that use AI; many drawn from the CBUAE AI guidance note).
-- **BMad customization overrides** — the dev agent and the architecture, build, code-review and test-design workflows load the project's standards as persistent facts; when the architecture workflow finishes it offers Jules (governance assessments) and Scrooge McDuck (cost estimate), and when the build finishes the last story it offers Scrooge's project close-out; epics-and-stories uses the org's hybrid story structure and offers to sync to the project's Jira.
+- **BMad customization overrides** — the dev agent and the architecture, build, code-review and test-design workflows load the project's standards as persistent facts; when the architecture workflow finishes it offers Leonardo da Vinci (architecture diagrams), Jules (governance assessments) and Scrooge McDuck (cost estimate); when a story finishes an epic the build (or the epic retrospective) asks the team to rate the AI on it, 1 to 5 and what went wrong when it was poor, and when the build finishes the last story it offers Scrooge's project close-out; epics-and-stories uses the org's hybrid story structure and offers to sync to the project's Jira.
 - **Scrooge McDuck (`agent-scrooge`), Token Usage Accountant and Cost Estimator** — a memory agent. Counts every API call in the project's Claude Code logs, attributes it to a story (by the project's Jira key) or planning phase, a step and an activity, writes a gitignored ledger, and sternly audits it for savings; background hooks keep the ledger current. Prices the solution from whatever the BMad work has produced so far (spine, spec, epics, plus anything you tell it) into an Excel workbook: a sheet per environment at Azure list prices, an employee rate card, other costs, and an overall summary where days of delivery, employees and mandays are inputs you can change.
 - **Leonardo da Vinci (`leonardo-da-vinci`), Architecture Diagrams and Design Documents** — writes cited High-Level and Low-Level Design Word documents, and draws draw.io diagrams (C4 context, C4 containers, cloud deployment with Azure and Kubernetes icons, data flow with trust boundaries and PII/PHI, sequence for a named flow) from the project's architecture spine, spec and UX docs only. Every box and arrow cites its AD or section, gaps are listed rather than drawn, it challenges the architecture before drawing, and a drift check flags diagrams older than their spine.
 - **Jules (`agent-jules`), IT Governance** — drafts, coaches and routes the Technical Architecture, Data Governance & Privacy and Enterprise AI Risk Assessment answers for the Product Lead and Tech Lead from the project's BMad artifacts, replies to reviewer comments and checks answers for drift. Jules asks whether your organisation has its own questionnaire templates (put them in the governance folder), and ports answers to similar questions over from the three standard ones. Jules also considers the regulatory documents of the region the solution is developed in, chosen at setup, citing the clause it relies on and checking each document's date before relying on it.
 
-Version 1.6.0 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
+Version 1.7.0 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
 
 ## What this adds to BMad, and why it's different
 
@@ -20,7 +20,7 @@ BMad Method takes a project from idea to working code: brief, spec, architecture
 - **It challenges before it produces.** Leonardo, Scrooge and Jules each put the gaps, contradictions and risky choices to you first, most consequential first. Answers you approve become AD text in the spine, so the architecture itself improves, not just the document.
 - **It notices when things change.** Each diagram, design document and estimate records which version of its sources it was built from. Drift checks name the decisions that changed since then, so a stale diagram or an answer resting on an old decision doesn't go unnoticed.
 - **Standards live in BMad's own workflows.** The org's standards are loaded as persistent facts into the dev agent and the architecture, build, code-review and test-design workflows through BMad's customisation overrides. BMad itself isn't forked, so a BMad update keeps working.
-- **It shows up at the right moment.** When the architecture is done, you're offered the governance assessments (Jules) and the cost estimate (Scrooge). When the last story is delivered, you're offered the project close-out. Epics and stories can sync to Jira, and HLD/LLD documents can be published to Confluence.
+- **It shows up at the right moment.** When the architecture is done, you're offered the architecture diagrams (Leonardo), the governance assessments (Jules) and the cost estimate (Scrooge). When an epic finishes, the team rates the AI on it. When the last story is delivered, you're offered the project close-out. Epics and stories can sync to Jira, and HLD/LLD documents can be published to Confluence.
 - **It measures itself.** Scrooge counts every Claude API call the project made, attributed to its story, planning phase, step and activity, and prices it at Anthropic's list prices. The close-out records how long each BMad stage and epic took. You get evidence of what AI-assisted delivery cost and where it was spent, not an impression, and the data feeds a Power BI dashboard.
 - **People decide; agents prepare.** The agents draft, explain and route. The Product Lead and Tech Lead sign governance answers, and leads are referred to by role, never by name. Nothing is applied to a document, published to Confluence, synced to Jira or sent to governance without an explicit yes. Cloud and Claude prices come from their public price lists, with the date they were read, and day rates only ever come from your own rate card.
 - **Org-owned, project-extended.** Standards baselines, questionnaires, design-document outlines and Word templates are the organisation's defaults. Each project copies them and extends them, and the kit never overwrites a project's own version. Your own governance templates can replace the standard ones, and answers to similar questions port over. Regional regulation (for example the CBUAE's AI guidance) is a setting, and cited clause by clause.
@@ -28,10 +28,10 @@ BMad Method takes a project from idea to working code: brief, spec, architecture
 
 | BMad stage | What the Org Kit adds |
 | --- | --- |
-| Architecture | Org standards applied; diagrams and HLD/LLD documents drawn from the spine; its gaps challenged; governance assessments and cost estimate offered |
+| Architecture | Org standards applied; diagrams and HLD/LLD documents drawn from the spine; its gaps challenged; diagrams, governance assessments and cost estimate offered |
 | Epics and stories | Org story structure; Jira sync |
-| Build and review | Standards enforced in the dev agent, build and code review; every Claude call counted per story |
-| Delivery complete | Close-out: duration by stage and epic, Claude API calls and cost, dashboard-ready workbook |
+| Build and review | Standards enforced in the dev agent, build and code review; every Claude call counted per story; the AI rated 1 to 5 at the end of every epic |
+| Delivery complete | Close-out: duration by stage and epic, Claude API calls and cost, the AI feedback per epic, dashboard-ready workbook |
 | Any time | Governance answers, reviewer replies and drift checks (Jules); cost and savings audits (Scrooge); diagram and document drift (Leonardo) |
 
 ## Contents
@@ -62,7 +62,7 @@ Prerequisites: BMad Method installed in the project (`_bmad/`), [`uv`](https://d
 1. Install the kit as a module with the BMad installer, from its GitHub repository, in a terminal in the project folder:
 
    ```bash
-   npx bmad-method install --custom-source https://github.com/darrel1234/bmad-org-kit
+   npx bmad-method install --custom-source https://github.com/schuaschua/bmad-org-kit
    ```
 
    Pick the Org Kit (`org`) module and Claude Code as the tool. To install without prompts, add `--modules bmm,org --tools claude-code --yes --set org.jira_site=https://<site>.atlassian.net --set org.jira_project_key=<KEY>` (plus `--set org.<key>=<value>` for any other question below). The installer asks the questions below, writes them to `[modules.org]` in `_bmad/config.toml`, and registers Jules and the capabilities in `bmad-help`.
@@ -95,6 +95,42 @@ Prerequisites: BMad Method installed in the project (`_bmad/`), [`uv`](https://d
 7. Checks for `uv`, the Atlassian MCP server, the safe-docx MCP server, draw.io desktop (diagram exports) and the draw.io MCP server (diagram previews), and says how to add any that are missing.
 
 Setup runs a dry run first and shows you what it would change.
+
+## Check it's working
+
+Run these once after installing BMad, the kit and setup, and again after each kit update. The automatic prompts depend on the `_bmad/custom` overrides, so most problems are an override that setup skipped because the project already had one.
+
+1. **Setup has run and the overrides are current.** Setup reports each override it wrote, and lists under "waiting for a manual merge" each one it left alone because the project already had it. Merge those, then check:
+
+   ```bash
+   ls _bmad/custom/
+   grep -l "leonardo-da-vinci" _bmad/custom/bmad-architecture.toml
+   grep -l "ai_feedback.py"    _bmad/custom/bmad-build.toml _bmad/custom/bmad-build-auto.toml _bmad/custom/bmad-retrospective.toml
+   ```
+
+   Every file should be listed. A missing one means that prompt won't appear.
+2. **The skills are where the overrides look for them.** The build and retrospective overrides run Scrooge's script from `.claude/skills/agent-scrooge/`:
+
+   ```bash
+   uv run .claude/skills/agent-scrooge/scripts/ai_feedback.py . pending
+   ```
+
+   It should print `"status": "ok"`, with any finished, unrated epics under `pending`. "No such file" means the skills were installed somewhere else (for example through the plugin marketplace). Rerun setup with `--skills-mode link` or `copy`, or change the path in the three overrides.
+3. **`uv` is installed** (`uv --version`). Every kit script runs through it.
+4. **The prompts appear at the right moments** (in a real session):
+
+   | When | What you should be asked |
+   | --- | --- |
+   | `bmad-architecture` finishes | Which of Leonardo (diagrams), Jules (governance assessments) and Scrooge (cost estimate) you'd like, once |
+   | `bmad-build` finishes the story that completes an epic | Rate the AI on that epic, 1 to 5; if 1 or 2, what went wrong (one or more categories, "Other" in your words) |
+   | `bmad-retrospective` finishes | The same rating, for any finished epic nobody has rated |
+   | Scrooge wakes | The same rating, for any finished epic still unrated (for example one finished by `bmad-build-auto`, which never asks) |
+   | `bmad-build` finishes the last story | Whether Scrooge should close out the project |
+
+   After you rate an epic, it has a row in `_bmad/memory/agent-scrooge/ai-feedback.csv`. Commit that file with the project.
+5. **An epic finishes only in the sprint status.** An epic counts as finished when its `epic-N` line in `sprint-status.yaml` is `done`, or when all its stories are. If the build doesn't update the sprint status, nothing asks. `ai_feedback.py . pending` (step 2) shows what the kit sees.
+
+If a prompt still doesn't appear, open the matching `_bmad/custom/<workflow>.toml` and check that its `on_complete` matches the kit's version in `skills/org-setup/assets/custom/`. The prompts are instructions the workflow follows when it finishes, so an interrupted or abandoned workflow skips them. Scrooge's wake-up check catches any missed ratings.
 
 ## Architecture diagrams (Leonardo da Vinci)
 
@@ -190,13 +226,14 @@ To add a region, add a `[regions.<code>]` table to `skills/agent-jules/assets/re
 | CE | agent-scrooge | Cost estimate workbook (build or update) |
 | RT | agent-scrooge | Employee rate card |
 | PC | agent-scrooge | Project close-out: duration, Claude API calls and cost |
+| EF | agent-scrooge | End-of-epic AI feedback (1 to 5, and what went wrong) |
 | DG | leonardo-da-vinci | Draw an architecture diagram |
 | DS | leonardo-da-vinci | High-Level or Low-Level Design document |
 | DD | leonardo-da-vinci | Diagram and document drift check |
 
 ## Updating
 
-- Update the kit through the BMad installer (it refreshes the `org` config and help entries), then run `org-setup` again for any new project files.
+- Update the kit through the BMad installer (it refreshes the `org` config and help entries), then run `org-setup` again for any new project files. Then merge any override setup lists as waiting, and run the checks in [Check it's working](#check-its-working).
 - Standards, questionnaires and overrides that already exist in the project are left alone, so project extensions survive. To adopt a newer baseline, diff your copy against `skills/org-setup/assets/standards/` and merge by hand; each baseline carries its version in its header.
 - Jules's sanctum (`_bmad/memory/agent-jules/`) is never touched by an update. Sanctum files and its copies of the capability prompts are created at First Breath, so template and prompt changes reach an existing sanctum only by hand; CHANGELOG.md lists what to carry over for each release.
 - Scrooge's sanctum and project data (`_bmad/memory/agent-scrooge/`: identity files, `stories.json`, `savings.json`, `rate-card.json`) are never touched by an update. Its capability prompts and scripts stay in the skill, so they update with the kit without a migration.

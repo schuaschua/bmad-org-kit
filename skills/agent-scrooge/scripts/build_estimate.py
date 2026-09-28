@@ -24,7 +24,8 @@ costs and the gaps, each line citing where it came from. The workbook has:
   Sources & Gaps   price basis, assumptions, what is not priced yet, and the stamp of every cited file
 
 Every data range is a named Excel table (tblInputs, tblTeam, tblCostSummary, tblEnv<name>, tblRateCard,
-tblOtherCosts, and with close_out tblClaudeUsage, tblClaudeUsageDetail, tblClaudePrices, tblTimeline),
+tblOtherCosts, and with close_out tblClaudeUsage, tblClaudeUsageDetail, tblClaudePrices, tblTimeline,
+tblAIFeedback),
 so Power BI and Excel Online can load them by name. Formulas get their values when Excel first opens
 the file (Power BI reads the values Excel last saved), so <name>.facts.csv is also written beside the
 workbook, with every cost line as a plain value for dashboards that read files directly.
@@ -57,7 +58,8 @@ Model (JSON):
   _bmad/memory/agent-scrooge/claude-prices.json (paths overridable with "ledger", "prices",
   "timeline"), and a Claude API usage line in the cost summary ("in_totals": false shows it as a memo
   below the grand total instead, for Claude Code on a subscription). fx_rate turns USD into the
-  reporting currency.
+  reporting currency. When the team has rated the AI at the end of its epics (ai_feedback.py), close_out
+  also adds the AI Feedback sheet from _bmad/memory/agent-scrooge/ai-feedback.csv ("feedback").
 
   cite: "<project-relative file> [<text that appears in it, e.g. AD-4 or a heading>]",
         "owner: <who, date>" for a figure the owner gave, or "assumption: <what and why>".
@@ -351,7 +353,8 @@ def load_close_out(root: Path, model: dict) -> tuple[dict | None, list[str]]:
     ledger, prices_file = path("ledger", ledger_dir / "claude_usage.csv"), path("prices", root / DATA_DIR / "claude-prices.json")
     timeline_file = path("timeline", ledger_dir / "project_timeline.csv")
     daily_file = path("daily", ledger_dir / "claude_usage_daily.csv")
-    usage, prices, timeline, daily = [], {}, [], []
+    feedback_file = path("feedback", root / DATA_DIR / "ai-feedback.csv")
+    usage, prices, timeline, daily, feedback = [], {}, [], [], []
     if not ledger.is_file():
         errors.append(f"close_out: no Claude usage ledger at {ledger}; refresh it with token_report.py")
     else:
@@ -367,6 +370,9 @@ def load_close_out(root: Path, model: dict) -> tuple[dict | None, list[str]]:
     if daily_file.is_file():
         with daily_file.open(newline="", encoding="utf-8") as fh:
             daily = [r for r in csv.DictReader(fh) if int(r.get("calls") or 0)]
+    if feedback_file.is_file():
+        with feedback_file.open(newline="", encoding="utf-8") as fh:
+            feedback = list(csv.DictReader(fh))
     ccy = model.get("currency")
     if ccy != "USD" and not is_number(spec.get("fx_rate"), strict=True):
         errors.append(f"close_out.fx_rate: Claude prices are in USD; give the rate to {ccy} (and fx_source)")
@@ -374,10 +380,11 @@ def load_close_out(root: Path, model: dict) -> tuple[dict | None, list[str]]:
     tokens = ("input_tokens", "cache_write_5m_tokens", "cache_write_1h_tokens", "cache_read_tokens", "output_tokens")
     unpriced = sorted({r["model"] for r in usage if pricing_id(r["model"]) not in known
                        and any(int(r.get(t) or 0) for t in tokens)})
-    return {"usage": usage, "prices": prices, "timeline": timeline, "daily": daily, "unpriced": unpriced,
+    return {"usage": usage, "prices": prices, "timeline": timeline, "daily": daily, "feedback": feedback,
+            "unpriced": unpriced,
             "fx_rate": spec.get("fx_rate", 1) if ccy != "USD" else 1, "fx_source": spec.get("fx_source", ""),
             "in_totals": spec.get("in_totals", True),
-            "files": [p for p in (ledger, prices_file, timeline_file, daily_file) if p.is_file()]}, errors
+            "files": [p for p in (ledger, prices_file, timeline_file, daily_file, feedback_file) if p.is_file()]}, errors
 
 
 def claude_cost(close: dict) -> tuple[float, int]:
@@ -1321,7 +1328,8 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
                                              QTY=QTY, BLUE=BLUE, GREEN=GREEN, BOLD=BOLD))
     order = ["Overall", "Multi-Year", "Epics", "Sprints", "Revenue", "Rate Card", "Other Costs", "Run Costs",
              *[e["name"] for e in model["environments"]],
-             "Claude Prices", "Claude Usage", "Claude Usage Detail", "Claude Usage Daily", "Project Timeline", "Sources & Gaps"]
+             "Claude Prices", "Claude Usage", "Claude Usage Detail", "Claude Usage Daily", "Project Timeline", "AI Feedback",
+             "Sources & Gaps"]
     for i, name in enumerate(n for n in order if n in wb.sheetnames):
         wb.move_sheet(name, offset=i - wb.sheetnames.index(name))
     wb.calculation.fullCalcOnLoad = True
@@ -1465,6 +1473,31 @@ def write_close_out(wb, close: dict, ccy: str, k: dict) -> None:
         add_table(ts, "tblTimeline", "A", 4, "H", r)
         widths(ts, [12, 36, 30, 12, 12, 12, 8, 14])
         ts.freeze_panes = "A5"
+
+    # AI Feedback: the team's rating of the AI at the end of each epic
+    if close["feedback"]:
+        fb = wb.create_sheet("AI Feedback")
+        put(fb, "A1", "AI feedback by epic", font=k["TITLE"])
+        put(fb, "A2", "The team's rating of the AI at the end of each epic, 1 (very poor) to 5 (excellent), and what went "
+                      "wrong when it was poor (1 or 2). From ai-feedback.csv in Scrooge's sanctum.")
+        header(fb, 4, ["Epic", "Rating", "Poor", "Categories", "Other", "Comment", "Status", "Recorded"])
+        r = 4
+        for f in close["feedback"]:
+            r += 1
+            values = [f["epic"], int(f["rating"]) if str(f.get("rating", "")).isdigit() else None, f.get("poor", ""),
+                      f.get("categories", ""), f.get("other", ""), f.get("comment", ""), f.get("status", ""),
+                      iso_datetime(f.get("recorded", ""))]
+            for c, v in enumerate(values, 1):
+                cell = fb.cell(row=r, column=c, value=v)
+                if c == 8:
+                    cell.number_format = "yyyy-mm-dd"
+        add_table(fb, "tblAIFeedback", "A", 4, "H", r)
+        r += 1
+        put(fb, f"A{r}", "Average")
+        put(fb, f"B{r}", f"=IFERROR(AVERAGE(B5:B{r - 1}),\"\")", "0.0")
+        k["total_row"](fb, r, 8)
+        widths(fb, [10, 8, 7, 60, 36, 36, 10, 12])
+        fb.freeze_panes = "A5"
 
 
 def write_facts(model: dict, figures: dict, out: Path) -> None:
