@@ -2,7 +2,7 @@
 
 A BMad module that adds the organisation layer to a BMad Method (`bmm`) project: org standards, governance sign-off, cost estimates, design documents and diagrams, and a count of what the AI-assisted delivery itself cost. Everything is produced inside the BMad flow, from the artifacts BMad already writes: the spine, spec, UX docs, epics and sprint status.
 
-Version 1.8.0 ([CHANGELOG.md](CHANGELOG.md)).
+Version 1.9.0 ([CHANGELOG.md](CHANGELOG.md)).
 
 ## What's in it
 
@@ -12,7 +12,7 @@ Version 1.8.0 ([CHANGELOG.md](CHANGELOG.md)).
 | **Governance questionnaires** | Technical Architecture (23 questions), Data Governance & Privacy (10) and Enterprise AI Risk (20) Assessments, as blank `.docx`. |
 | **BMad overrides** | Load the standards into the dev agent and the architecture, build, code-review and test-design workflows, and make the agents below show up at the right moment. BMad itself isn't forked. |
 | **Jules** (`agent-jules`) | IT governance: drafts the assessment answers for the Product Lead and Tech Lead, replies to reviewers, checks for drift, and cites regional regulation. |
-| **Leonardo da Vinci** (`leonardo-da-vinci`) | draw.io diagrams (C4, deployment, data flow, sequence) and HLD/LLD Word documents. |
+| **Da Vinci** (`agent-davinci`) | Agrees the architecture principles with you before `bmad-architecture`, then draws draw.io diagrams (C4, deployment, data flow, sequence) and writes HLD/LLD Word documents. |
 | **Scrooge McDuck** (`agent-scrooge`) | Token ledger and budgets, cost estimates in Excel, infrastructure OPEX, and the project close-out. |
 
 ## How it works
@@ -21,13 +21,15 @@ Version 1.8.0 ([CHANGELOG.md](CHANGELOG.md)).
 - **Challenges first.** The agents put the gaps and contradictions to you before producing anything, most consequential first. Answers you approve become AD text in the spine.
 - **Drift checks.** Every output records the sources it was built from and flags the decisions that changed since.
 - **People decide.** Nothing is published, synced to Jira or sent to governance without an explicit yes. Prices come from public price lists, with the date read. Day rates come only from your rate card.
-- **Org-owned, project-extended.** The kit never overwrites a project's own copy of a standard, template or override. Jules and Scrooge keep their memory in `_bmad/memory/`, which updates never touch.
+- **Org-owned, project-extended.** The kit never overwrites a project's own copy of a standard, template or override. Jules, Scrooge and Da Vinci keep their memory in `_bmad/memory/`, which updates never touch.
+- **Everything lands in `docs/`.** Governance in `docs/governance/`, costing in `docs/costing/`, architecture principles, diagrams and design documents in `docs/architecture/`.
 
 ## When it shows up
 
 | Moment | What you're offered or asked |
 | --- | --- |
-| `bmad-architecture` finishes | Any of: diagrams (Leonardo), governance assessments (Jules), cost estimate (Scrooge) |
+| `bmad-architecture` starts, with no `docs/architecture/architecture.md` | Stops and sends you to Da Vinci to agree the architecture principles first (you can choose to go on without) |
+| `bmad-architecture` finishes | Any of: diagrams (Da Vinci), governance assessments (Jules), cost estimate (Scrooge) |
 | `bmad-create-epics-and-stories` finishes | Jira sync; then Scrooge's token budgets, if none are set |
 | `bmad-sprint-planning` finishes | Scrooge's token budgets (or a review that adds sprint budgets) |
 | `bmad-build` finishes an epic, or `bmad-retrospective` finishes | Rate the AI on the epic, 1 to 5; if 1 or 2, what went wrong |
@@ -61,8 +63,9 @@ Prerequisites: BMad Method in the project (`_bmad/`) and [`uv`](https://docs.ast
 | `confluence_wiki_url` | optional |
 | `governance_folder` | `{project-root}/docs/governance` |
 | `standards_folder` | `{project-root}/docs/standards` |
-| `token_usage_folder` (gitignored) | `{project-root}/docs/token_usage` |
-| `cost_estimates_folder` | `{project-root}/docs/cost_estimates` |
+| `token_usage_folder` (gitignored) | `{project-root}/docs/costing/token_usage` |
+| `cost_estimates_folder` | `{project-root}/docs/costing` |
+| `architecture_folder` (holds `architecture.md` and the per-cloud files) | `{project-root}/docs/architecture` |
 | `diagrams_folder` | `{project-root}/docs/architecture/diagrams` |
 | `design_docs_folder` | `{project-root}/docs/architecture/design` |
 | `region` (`none`, `uae`) | `none` |
@@ -73,7 +76,7 @@ Run these after installing and after every kit update:
 
 ```bash
 ls _bmad/custom/                                          # one file per override
-grep -L "leonardo-da-vinci" _bmad/custom/bmad-architecture.toml
+grep -L "architecture.md"     _bmad/custom/bmad-architecture.toml
 grep -L "ai_feedback.py"    _bmad/custom/bmad-build*.toml _bmad/custom/bmad-retrospective.toml
 grep -L "token budgets"     _bmad/custom/bmad-create-epics-and-stories.toml _bmad/custom/bmad-sprint-planning.toml
 uv run .claude/skills/agent-scrooge/scripts/ai_feedback.py . pending   # should print "status": "ok"
@@ -83,13 +86,37 @@ The `grep -L` lines list any override that is out of date. Merge the kit's versi
 
 "No such file" from the last command means the skills aren't in `.claude/skills/`. Rerun setup with `--skills-mode link` or `copy`.
 
-## Leonardo da Vinci: diagrams and design documents
+## Da Vinci: principles, diagrams and design documents
 
-Ask for a diagram ("draw the deployment diagram", "sequence diagram for one chat turn") or a document ("write the HLD", "LLD for the Chat API"). Leonardo reads only the spine, spec and UX docs (plus the epics and test design for an LLD).
+Da Vinci is a memory agent. He remembers the principles you held firm on and the drawing choices you prefer.
 
-- **Diagrams**: a `.drawio` file with a `<name>.model.json` beside it listing each element's citation. They use Azure and Kubernetes icons from draw.io's libraries and follow the org's drawing rules. Nothing overlaps, and the paper size is chosen to fit. PNG and SVG exports need draw.io desktop.
-- **Documents**: `hld.docx` or `lld-<component>.docx`, with the current diagrams embedded, open points collected in an appendix, and a trace from each AD to where it's cited. They follow the org outline, or your template in `<design docs folder>/templates/`. Leonardo can start from an existing Confluence page and publish to Confluence, asking first.
-- **Drift**: `uv run skills/leonardo-da-vinci/scripts/diagram-drift.py <project-root>` names the ADs that changed. It exits 1 when anything is stale, so it also works in CI.
+- **Architecture principles.** Before `bmad-architecture`, say "Da Vinci, set the architecture principles".
+  - He first reads the brief, spec, PRD, your region's regulation and any policies you've put in `docs/architecture/`. He never asks what they already answer; those answers are recorded with their source. The kit's org standards don't count as answers.
+  - He then asks the rest, one or two at a time:
+    1. cloud, hybrid or on-premises;
+    2. the cloud platforms;
+    3. IaaS or PaaS;
+    4. a 1 to 6 ranking of the Well-Architected pillars;
+    5. your architecture policies (put them in `docs/architecture/`; questions 6 to 15 are then answered from them first);
+    6. naming convention;
+    7. tags;
+    8. multi-region or single-region, and high availability;
+    9. on-premises integration and its network link;
+    10. how much AI, the organisation's familiarity with it and its data quality standards;
+    11. the environments and how strict the rules between them are;
+    12. event-driven, microservices or monolith;
+    13. for a migration, comfort with AI running it;
+    14. the security level (Very strict to Relaxed);
+    15. the approved stack for the front end, back end, database, CI/CD and AI platform.
+  - The answers become a Context table, and the ones that constrain the design become principles (`P-1`, `P-2` ...): testable rules with their reason, pillar and source. Skipped questions stay open.
+  - He shows you a summary of every answer, the principles and the open questions, and writes only once you confirm it.
+  - Cloud-neutral answers go in `docs/architecture/architecture.md`. Each cloud you name gets its own file beside it (`azure.md`, `aws.md` ...), holding its services, naming, tags, regions, connectivity and principles. Principle numbers are unique across the files.
+  - `bmad-architecture` loads every `.md` in `docs/architecture/` as standing facts: every AD honours each principle or names the one it departs from and why.
+- **Diagrams**: "draw the deployment diagram", "sequence diagram for one chat turn". A `.drawio` file with a `<name>.model.json` beside it listing each element's citation. They use Azure and Kubernetes icons from draw.io's libraries and follow the org's drawing rules. Nothing overlaps, and the paper size is chosen to fit. PNG and SVG exports need draw.io desktop.
+- **Documents**: "write the HLD", "LLD for the Chat API". `hld.docx` or `lld-<component>.docx`, with the current diagrams embedded, open points collected in an appendix, and a trace from each AD to where it's cited. They follow the org outline, or your template in `<design docs folder>/templates/`. Da Vinci can start from an existing Confluence page and publish to Confluence, asking first.
+- **Drift**: `uv run skills/agent-davinci/scripts/diagram-drift.py <project-root>` names the ADs that changed. It exits 1 when anything is stale, so it also works in CI. Da Vinci also checks the spine still honours the principles.
+
+Diagrams and documents come only from the spine, spec and UX docs (plus the epics and test design for an LLD). Da Vinci challenges their gaps and any departure from the principles before drawing.
 
 ## Scrooge McDuck: tokens and costs
 
@@ -133,13 +160,13 @@ To add a region, add `[regions.<code>]` to `skills/agent-jules/assets/regions.to
 | org-setup | SU set up or reconfigure |
 | agent-jules | AQ answer questionnaires · CL coach · RC reply to reviewers · CW comment watch · DR drift check · AL answer library |
 | agent-scrooge | RF refresh ledger · SC story or phase cost · CD cost drivers · CL story cost line · TB token budgets · CE cost estimate · RT rate card · PC close-out · EF epic AI feedback |
-| leonardo-da-vinci | DG diagram · DS design document · DD drift check |
+| agent-davinci | AP architecture principles · DG diagram · DS design document · DD drift check |
 
 ## Updating
 
 Update through the BMad installer, then run "setup Org Kit" again and merge any override it lists as waiting. Then run [the checks](#check-its-working). Existing standards and overrides are never overwritten. To adopt a newer baseline, diff your copy against `skills/org-setup/assets/standards/`.
 
-Agent memory under `_bmad/memory/` is never touched. Scrooge's prompts and scripts update with the kit. Jules's copied prompts need the carry-overs listed in the CHANGELOG.
+Agent memory under `_bmad/memory/` is never touched. Scrooge's and Da Vinci's prompts and scripts update with the kit. Jules's copied prompts need the carry-overs listed in the CHANGELOG.
 
 ## Developing the kit
 
@@ -147,7 +174,7 @@ Agent memory under `_bmad/memory/` is never touched. Scrooge's prompts and scrip
 uv run skills/org-setup/scripts/tests/test-install-org-assets.py
 for t in skills/agent-jules/scripts/tests/*.py; do uv run "$t"; done
 uv run --with pytest --with openpyxl pytest -q skills/agent-scrooge/scripts/tests   # --with formulas also recalculates the workbook
-for t in skills/leonardo-da-vinci/scripts/tests/test_*.py; do uv run "$t"; done
+for t in skills/agent-davinci/scripts/tests/test_*.py; do uv run "$t"; done
 ```
 
 Validate the module with the BMad Module Builder's Validate Module (VM) path on `skills/`.

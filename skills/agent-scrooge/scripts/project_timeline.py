@@ -5,7 +5,7 @@
 """How long the project took: BMad stages, custom agents, epics and stories, start to finish.
 
 Gathers dates from the project itself and writes project_timeline.csv to the token usage folder
-(org config token_usage_folder, default docs/token_usage):
+(org config token_usage_folder, default docs/costing/token_usage):
 
   bmad stage  each BMad artifact under _bmad-output/ (brief, spec/PRD, architecture spine, UX,
               epics, test design, sprint status): first and last commit that touched it (git),
@@ -234,7 +234,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-o", "--output", type=Path, help="CSV to write (default: <token usage folder>/project_timeline.csv)")
     args = p.parse_args(sys.argv[1:] if argv is None else argv)
     root = Path(args.project_root).resolve()
-    folder = org_folder(root, "token_usage_folder", "docs/token_usage")
+    folder = org_folder(root, "token_usage_folder", "docs/costing/token_usage")
     try:
         rows = stage_rows(root) + agent_rows(root) + epic_rows(root) + claude_rows(args.ledger or folder / "claude_usage.csv")
     except (OSError, ValueError) as e:

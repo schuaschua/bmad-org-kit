@@ -1,7 +1,7 @@
 [
   {
     "id": "challenge-before-drawing",
-    "input": "hey leonardo, can you draw the deployment diagram for burdeebur? the spine is in the usual place",
+    "input": "hey da vinci, can you draw the deployment diagram for burdeebur? the spine is in the usual place",
     "rubric": [
       "The final message challenges AD-1's placement of Cosmos DB inside AKS and asks whether the managed Cosmos DB service, outside the cluster, was meant.",
       "The final message asks how the data is handled across the multiple regions (for example whether Cosmos DB replicates between regions or each region has its own).",
@@ -25,7 +25,7 @@
       "The model's page is A4 portrait, either stated or absent (the default).",
       "_bmad-output/planning-artifacts/architecture/burdeebur-amended/ARCHITECTURE-SPINE.md is byte-identical to the fixture."
     ],
-    "state_prefix": "[Leonardo has already read the burdeebur-amended spine and challenged it. Asked about Data Factory's connection to on-premises and about personal data leaving Azure, the user said:] User said: \"leave those as gaps for now. deployment diagram, A4 portrait is fine.\"",
+    "state_prefix": "[Da Vinci has already read the burdeebur-amended spine and challenged it. Asked about Data Factory's connection to on-premises and about personal data leaving Azure, the user said:] User said: \"leave those as gaps for now. deployment diagram, A4 portrait is fine.\"",
     "files": ["_bmad-output/planning-artifacts/architecture/burdeebur-amended/ARCHITECTURE-SPINE.md"]
   },
   {

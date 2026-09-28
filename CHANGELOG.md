@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.9.0 — 2026-09-28
+
+### Da Vinci (was Leonardo da Vinci)
+
+- **Renamed and now an agent.** The `leonardo-da-vinci` skill is now `agent-davinci`: a memory agent like Jules and Scrooge.
+  - He has a persona and a sanctum in `_bmad/memory/agent-davinci/`, and remembers the principles you held firm on, the gaps you deferred and your drawing preferences.
+  - He is registered in the module's agent roster.
+  - His capabilities are AP (architecture principles), DG (draw), DS (design document) and DD (drift check).
+- **Architecture principles (AP).** Before `bmad-architecture` begins, Da Vinci settles the architecture questions and guardrails with you, confirms a summary, and writes `docs/architecture/architecture.md` plus one file per cloud provider you name (`azure.md`, `aws.md` ...).
+  - He first reads the brief, spec, PRD, regulator documents and any policies in `docs/architecture/` (not the kit's org standards), and never asks what they already answer; he records those answers with their source.
+  - He then asks the rest of fifteen architecture questions, in order:
+    - environment (cloud, hybrid or on-premises), the cloud platforms and the service model (IaaS or PaaS);
+    - a 1 to 6 ranking of the Well-Architected pillars;
+    - existing architecture policies: if you have them, put them in `docs/architecture/`, and questions 6 to 15 are then answered from them first;
+    - naming convention per provider (suggesting `<orgname>-<region>-<appname>-<resourceType>-<number>`) and tags;
+    - regions and availability, on-premises integration and its network link, and AI use, maturity and data quality;
+    - the environments and how strict the rules between them are, and the architecture style;
+    - for a migration, comfort with AI carrying it out;
+    - the security level (Very strict to Relaxed), and the approved front-end, back-end, database, CI/CD and AI stack.
+  - Before writing, he shows a summary of every answer (asked, or from which document), the principles and the open questions, and writes only once you confirm.
+  - `architecture.md` holds the cloud-neutral answers in a Context table with their sources, the policies, the principles (`P-1` ...: testable rules with their reason, Well-Architected pillar and source) and the open questions.
+  - Each provider file holds that provider's service choices, naming, tags, regions, connectivity, stack and principles. Principle numbers are unique across all the files.
+- **`bmad-architecture` follows the principles.** Its override loads every `.md` in the architecture folder as persistent facts (`architecture.md` and the provider files): every AD honours each principle, or names the one it departs from and why. A new `activation_steps_prepend` stops before the architecture begins when there are no principles yet and sends you to Da Vinci. You can choose to continue without, and headless runs record the gap as an open question.
+- Da Vinci's challenge before drawing, and his drift check, now also flag ADs that depart from a principle without saying why. Jules may cite a principle by number in a governance answer.
+- New org config value `architecture_folder` (default `docs/architecture`), which holds `architecture.md` and the provider files. `spine.py` reports the file, whether it exists, and the other documents beside it.
+
+### Everything under docs/
+
+- Scrooge's defaults move to `docs/costing/`: `cost_estimates_folder` is now `docs/costing`, and `token_usage_folder` (gitignored) is now `docs/costing/token_usage`. Jules stays in `docs/governance/` and Da Vinci in `docs/architecture/`.
+- Scrooge's ledger phase for Da Vinci's work is now `architecture docs (Da Vinci)`.
+
+### Upgrading
+
+- **Folders.** A project keeps the folders already in its config. To use the new defaults, change `token_usage_folder` and `cost_estimates_folder` in `[modules.org]`, move the files, and update the `.gitignore` entry.
+- **Da Vinci's skill link.** Rerun "setup Org Kit": it links `agent-davinci`. Delete the old `.claude/skills/leonardo-da-vinci` link yourself.
+- **Overrides.** In a project that already has `_bmad/custom/bmad-architecture.toml`, merge the suggested `activation_steps_prepend`, the `file:<architecture_folder>/*.md` persistent fact and the new `on_complete`.
+- **Token budgets.** If `token-budgets.json` budgets the phase `diagrams & design docs (Leonardo)`, rename that key to `architecture docs (Da Vinci)`.
+
 ## 1.8.0 — 2026-09-28
 
 ### Scrooge McDuck

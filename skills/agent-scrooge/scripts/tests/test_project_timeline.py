@@ -51,7 +51,7 @@ def test_timeline_from_git_sanctums_and_ledger(tmp_path, capsys):
     (jules / "sessions").mkdir(parents=True)
     (jules / "PERSONA.md").write_text("- **Born:** 2026-08-30\n")
     (jules / "sessions/2026-09-12.md").write_text("notes")
-    ledger = root / "docs/token_usage/claude_usage.csv"
+    ledger = root / "docs/costing/token_usage/claude_usage.csv"
     ledger.parent.mkdir(parents=True)
     ledger.write_text("kind,work_item,model,first_call,last_call\n"
                       "planning,brainstorming,m,2026-08-28T09:00:00Z,2026-08-28T11:00:00Z\n"
@@ -71,7 +71,7 @@ def test_timeline_from_git_sanctums_and_ledger(tmp_path, capsys):
     project = out["project"]
     assert (project["status"], project["started"], project["completed"]) == ("complete", "2026-08-28", "2026-09-15")
     assert project["calendar_days"] == 19 and project["working_days"] == 13  # Fri 28 Aug to Tue 15 Sep
-    written = list(csv.DictReader((root / "docs/token_usage/project_timeline.csv").open()))
+    written = list(csv.DictReader((root / "docs/costing/token_usage/project_timeline.csv").open()))
     assert written[0]["category"] == "project" and written[0]["days"] == "19"
 
 

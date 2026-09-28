@@ -65,10 +65,13 @@ class InstallOrgAssetsTests(unittest.TestCase):
         self.assertIn("Scrooge", sprints["workflow"]["on_complete"])
         self.assertIn("token-budgets.json", sprints["workflow"]["on_complete"])
         arch = tomllib.loads((custom / "bmad-architecture.toml").read_text(encoding="utf-8"))
-        self.assertEqual(arch["workflow"]["persistent_facts"], ["file:docs/standards/*.md"])
+        self.assertEqual(arch["workflow"]["persistent_facts"],
+                         ["file:docs/architecture/*.md", "file:docs/standards/*.md"])
+        self.assertIn("docs/architecture/architecture.md", arch["workflow"]["activation_steps_prepend"][0])
+        self.assertIn("agent-davinci", arch["workflow"]["activation_steps_prepend"][0])
         self.assertIn("Jules", arch["workflow"]["on_complete"])
         self.assertIn("Scrooge", arch["workflow"]["on_complete"])
-        self.assertIn("leonardo-da-vinci", arch["workflow"]["on_complete"])
+        self.assertIn("agent-davinci", arch["workflow"]["on_complete"])
         for name in ("bmad-build.toml", "bmad-build-auto.toml"):
             build = tomllib.loads((custom / name).read_text(encoding="utf-8"))
             self.assertEqual(build["workflow"]["persistent_facts"], ["file:docs/standards/*.md"])
@@ -149,6 +152,12 @@ class InstallOrgAssetsTests(unittest.TestCase):
         settings = json.loads((claude / "settings.local.json").read_text(encoding="utf-8"))
         self.assertEqual(settings["permissions"], {"allow": ["Bash(ls)"]})
         self.assertEqual(out["hooks"]["added"], ["Stop", "SubagentStop"])
+
+    def test_principles_follow_the_architecture_folder(self):
+        code, out = run(*self.base_args("--architecture-folder", "{project-root}/design/arch"))
+        self.assertEqual(code, 0, out)
+        arch = tomllib.loads((self.root / "_bmad" / "custom" / "bmad-architecture.toml").read_text(encoding="utf-8"))
+        self.assertEqual(arch["workflow"]["persistent_facts"][0], "file:design/arch/*.md")
 
     def test_rejects_bad_project_key(self):
         args = self.base_args()

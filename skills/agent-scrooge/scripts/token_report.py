@@ -7,7 +7,7 @@
 Reads Claude Code's own session logs for the project (~/.claude/projects/<project root with every
 non-alphanumeric character as "-">/: one .jsonl per session, plus subagents/agent-<id>.jsonl and
 .meta.json per agent) and writes six files to <out-dir> (default: the org config's
-token_usage_folder, else <project>/docs/token_usage/):
+token_usage_folder, else <project>/docs/costing/token_usage/):
 
   token_usage.csv                one row per work item x day x step x activity x model
   token_usage_summary.csv        planning phases; each story as a total plus six activity rows
@@ -81,7 +81,7 @@ SKILL_PHASE = {
     "agent-jules": "governance (Jules)", "bmad-agent-builder": "tooling & setup",
     "bmad-project-context": "tooling & setup", "bmad-customize": "tooling & setup", "update-config": "tooling & setup",
     "bmad-module-builder": "tooling & setup", "agent-scrooge": "token reporting", "bmad-build": None,
-    "leonardo-da-vinci": "diagrams & design docs (Leonardo)", "org-setup": "tooling & setup",
+    "agent-davinci": "architecture docs (Da Vinci)", "org-setup": "tooling & setup",
     "clear": None, "compact": None, "mcp": None, "agents": None, "cost": None, "usage": None,
 }
 SKILL_EXPIRY = timedelta(minutes=60)  # on a real branch, a skill's phase lapses after this long
@@ -93,7 +93,7 @@ DESCRIPTION_PHASE = [
     (r"spine|architecture|\bad-\d|tech currency|walkthrough deck|currency review|adversarial review of ad", "architecture"),
     (r"\btea\b|test design|testability", "test design"),
     (r"jules|governance|cloudassessment|criticality|architectureassessment|privacyassessment|airiskassessment", "governance (Jules)"),
-    (r"leonardo|drawio|\bhld\b|\blld\b|design doc", "diagrams & design docs (Leonardo)"),
+    (r"leonardo|davinci|da vinci|principles\.md|drawio|\bhld\b|\blld\b|design doc", "architecture docs (Da Vinci)"),
     (r"standards|terraform\.md|azure\.md", "standards & conventions"),
     (r"mars rover", "bmad-build trial"),
     (r"epic|stories|story-level|jira|requirements", "epics & stories"),
@@ -110,11 +110,13 @@ ARTIFACT_PHASE = [
     (r"skills/agent-jules|docs/governance|CloudAssessment|CriticalityAssessment|TechnicalArchitectureAssessment|DataGovernancePrivacyAssessment|EnterpriseAIRiskAssessment|_bmad/memory/jules", "governance (Jules)"),
     (r"planning-artifacts/spec|SPEC\.md", "spec"),
     (r"docs/standards", "standards & conventions"),
+    (r"docs/architecture/(principles|diagrams|design)|skills/agent-davinci|_bmad/memory/agent-davinci",
+     "architecture docs (Da Vinci)"),
 ]
 
 PHASE_ORDER = ["brainstorming", "spec", "architecture", "UX design", "epics & stories", "test design",
                "standards & conventions", "governance (Jules)", "tooling & setup", "bmad-build trial",
-               "planning changes (correct course)", "diagrams & design docs (Leonardo)", "token reporting"]
+               "planning changes (correct course)", "architecture docs (Da Vinci)", "token reporting"]
 PHASE_NOTES = {
     "brainstorming": "Brainstorming the idea and the brainstorm keepsake page",
     "spec": "Condensing the brainstorm into SPEC.md",
@@ -128,7 +130,7 @@ PHASE_NOTES = {
     "bmad-build trial": "Trial run of bmad-build on a sample spec before the real stories",
     "planning changes (correct course)": "Sprint change proposals",
     "token reporting": "Scrooge McDuck token reports and cost estimates",
-    "diagrams & design docs (Leonardo)": "Leonardo da Vinci architecture diagrams and HLD/LLD documents",
+    "architecture docs (Da Vinci)": "Da Vinci's architecture principles, diagrams and HLD/LLD documents",
     "merges, promotions & deploys": "Merging PRs, promoting dev to main, deploying and checking deploys",
     "other": "Work that couldn't be attributed to a story or phase",
 }
@@ -161,6 +163,7 @@ SAVINGS = {
     "tooling & setup": "One-off cost; nothing to save.",
     "bmad-build trial": "One-off cost; nothing to save.",
     "planning changes (correct course)": "Fold small course corrections into the next story brief instead of a separate proposal.",
+    "architecture docs (Da Vinci)": "Redraw from the saved model instead of re-reading the spine, and batch spine amendments before a redraw.",
     "token reporting": "The hook refreshes the files for free; ask Scrooge only when you want an explanation.",
     "epic": "An epic over its Claude API budget: look for reruns and long review loops in its stories before the next epic, and set the next budget from this actual.",
     "all stories": "The biggest lever is shorter agent contexts: every call re-reads everything the agent has seen, so start each step in a fresh agent with only the story brief.",
@@ -775,7 +778,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("project", nargs="?", default=".", help="project root or any path inside it (default: .)")
     parser.add_argument("--logs", help="Claude Code log folder (default: derived from the project root)")
-    parser.add_argument("-o", "--out-dir", help="output folder (default: org config token_usage_folder, else docs/token_usage)")
+    parser.add_argument("-o", "--out-dir", help="output folder (default: org config token_usage_folder, else docs/costing/token_usage)")
     parser.add_argument("--since", help="count only calls on or after this date (YYYY-MM-DD)")
     parser.add_argument("--story", help="also print this story's summary (e.g. PROJ-24)")
     parser.add_argument("--key", help="Jira project key (default: org config jira_project_key, else the story map's)")
@@ -787,7 +790,7 @@ def main(argv: list[str] | None = None) -> int:
     root = project_root(Path(args.project))
     log_dir = Path(args.logs) if args.logs else log_dir_for(root)
     config = org_config(root)
-    folder = str(config.get("token_usage_folder") or "docs/token_usage").replace("{project-root}", "").lstrip("/\\")
+    folder = str(config.get("token_usage_folder") or "docs/costing/token_usage").replace("{project-root}", "").lstrip("/\\")
     out_dir = Path(args.out_dir) if args.out_dir else root / folder
     if not log_dir.is_dir():
         print(json.dumps({"error": f"no Claude Code log folder at {log_dir}"}))

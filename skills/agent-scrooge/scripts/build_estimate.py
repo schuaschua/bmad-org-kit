@@ -6,7 +6,7 @@
 """Build a cost estimate workbook (.xlsx) from an estimate model, and check it for drift.
 
 The model (<name>.estimate.json, in the org config's cost_estimates_folder, default
-docs/cost_estimates/) lists every environment's cloud line items, the delivery team, other one-off
+docs/costing/) lists every environment's cloud line items, the delivery team, other one-off
 costs and the gaps, each line citing where it came from. The workbook has:
 
   Overall          inputs (days of delivery, working days per month, hours per month, years of run
@@ -126,13 +126,13 @@ def org_config(root: Path) -> dict:
 
 
 def token_usage_folder(root: Path) -> Path:
-    value = str(org_config(root).get("token_usage_folder") or "docs/token_usage").replace("{project-root}", str(root))
+    value = str(org_config(root).get("token_usage_folder") or "docs/costing/token_usage").replace("{project-root}", str(root))
     path = Path(value)
     return path if path.is_absolute() else root / path
 
 
 def estimates_folder(root: Path) -> Path:
-    value = str(org_config(root).get("cost_estimates_folder") or "docs/cost_estimates")
+    value = str(org_config(root).get("cost_estimates_folder") or "docs/costing")
     value = value.replace("{project-root}", str(root))
     path = Path(value)
     return path if path.is_absolute() else root / path

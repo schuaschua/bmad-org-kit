@@ -2,7 +2,7 @@
 
 <!-- Org default outline (kit 1.5.0). A project replaces it by putting its own hld.md in
 <design_docs_folder>/templates/. Each "## " heading is a section of the document, "### " a subsection;
-the text under a heading tells Leonardo what belongs there and where it comes from, and is not copied
+the text under a heading tells Da Vinci what belongs there and where it comes from, and is not copied
 into the document. "Diagram:" names the diagram the section shows (drawn first if it doesn't exist). -->
 
 ## Introduction

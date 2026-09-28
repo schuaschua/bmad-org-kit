@@ -461,7 +461,7 @@
       "cite": "owner: Delivery Manager (synthetic), 2026-09-28"
     },
     {
-      "phase": "diagrams & design docs (Leonardo)",
+      "phase": "architecture docs (Da Vinci)",
       "api_budget": 25,
       "cite": "owner: Delivery Manager (synthetic), 2026-09-28"
     },
@@ -472,16 +472,16 @@
     }
   ],
   "stamp": {
-    "built": "2026-09-28T14:45:51",
+    "built": "2026-09-28T15:18:38",
     "files": {
       "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md": "888bd47cdcac5428251a930fa8a6839821f5989c80b9b54f4689896b0ab68829",
       "_bmad-output/planning-artifacts/epics.md": "68f432fd10b0867a4ea5ee58e2523b7bb34f0f11d6ce37e5f02493da89ab8aac",
       "_bmad-output/specs/SPEC.md": "13119f5f075640f50410940aedafc9b8c571105f80eb1ebaa76dbd34eafcf5ef",
-      "token_usage/claude_usage.csv": "a04b88ac9fafb0b608f7fcdb5f50d4600f5af23d251833b41e9cee60d564dc8b",
+      "token_usage/claude_usage.csv": "e972364ca31689b9e6a3376316ad6526d03937e776c10228cc816a82a99cb6a1",
       "claude-prices.json": "0dcde61aa11063535136142216e4b4fab5d61c3bbb76918a0170db98a18ec51c",
       "token_usage/project_timeline.csv": "08bf946524c11d8897ee741e73ec10edd556ed434dcb770cff218a3db80ff64d",
-      "token_usage/claude_usage_daily.csv": "f12be0ce39fbf1661949646fad9c3294784d1513ba5fc1e3253fd1103ec55361"
+      "token_usage/claude_usage_daily.csv": "2a1ddfa62ec0137ada5e092ef133f78a705bd055e498f3cdcc4f571ea1af4afd"
     },
-    "workbook_mtime": 1790577951.5162706
+    "workbook_mtime": 1790579918.3188078
   }
 }
