@@ -1,6 +1,6 @@
 ---
 name: principles
-description: Before bmad-architecture begins, settle the architecture questions (environment, cloud, service model, Well-Architected priorities, policies, naming, tags, regions, on-premises links, AI, environments, style, migration, security, approved stack, web or mobile, analytics, AI/ML models) with the user, asking only what the project's documents leave open, confirm a summary, and write docs/architecture/architecture.md plus one file per cloud provider; or revise them
+description: Before bmad-architecture begins, settle the architecture questions (environment, cloud, service model, Well-Architected priorities, policies, naming, tags, regions, on-premises links, AI, environments, style, migration, security, approved stack, web or mobile, analytics) with the user, asking only what the project's documents leave open, confirm a summary, and write docs/architecture/architecture.md plus one file per cloud provider; or revise them
 code: AP
 added: 2026-09-28
 type: prompt
@@ -57,7 +57,10 @@ Ask in this order, one or two at a time. Where the answer is a choice, offer the
 7. **Tags:** which tags matter most to the organisation (for example owner, cost centre, environment, data classification, application).
 8. **Regions and availability:** multi-region or single-region, and within a region, high availability (across availability zones) or a single datacentre? Name the regions per provider.
 9. **On-premises integration:** is there much integration with an on-premises environment? If yes, how strong is the network link (for example Azure ExpressRoute or AWS Direct Connect, and its bandwidth)?
-10. **AI:** will the project involve a lot of AI? If yes, how familiar is the organisation with AI, and how high are the data quality standards for data the AI consumes?
+10. **AI:** will the project involve a lot of AI? If yes, ask three follow-ups:
+    - how familiar is the organisation with AI;
+    - how high are the data quality standards for data the AI consumes;
+    - are we building our own AI/ML models (training or fine-tuning), or only using existing ones?
 11. **Environments:** how many environments (for example Dev, Test, UAT, Prod), and how strict are the rules between them (separate subscriptions or accounts, promotion gates, production data kept out of lower environments)?
 12. **Architecture style:** mainly event-driven, microservices, a modular monolith or a monolith?
 13. **Migration:** is this a migration or modernisation project? If yes, how comfortable are they with AI carrying out the migrations, and what must a person review?
@@ -72,9 +75,8 @@ Ask in this order, one or two at a time. Where the answer is a choice, offer the
     - which platforms: iOS, Android, or both;
     - native apps per platform, or one cross-platform framework (for example React Native, Flutter or .NET MAUI).
 17. **Analytics:** are we running any heavy analytics workloads (for example large reporting, data warehousing, or big batch or streaming jobs)?
-18. **AI/ML models:** are we building our own AI/ML models (training or fine-tuning), rather than only using existing ones?
 
-Skip a question that no longer applies: no on-premises environment means no question 9, and no AI in the project means no follow-ups to question 10, a pure web application means no follow-ups to question 16, and no AI at all (question 10) means no question 18.
+Skip a question that no longer applies: no on-premises environment means no question 9, no AI in the project means no follow-ups to question 10, and a pure web application means no follow-ups to question 16.
 
 Then offer to add any further guardrails the answers suggest, such as a cost ceiling, a recovery target (RTO and RPO) or data residency. Stop when {user_name} says so.
 
@@ -95,7 +97,7 @@ Where an answer goes:
 
 | Answer | `architecture.md` | `<provider>.md` |
 | --- | --- | --- |
-| 1 environment, 4 pillar ranking, 5 policies, 10 AI, 11 environments, 12 style, 13 migration, 14 security level, 16 application type, 17 analytics, 18 AI/ML models | yes | |
+| 1 environment, 4 pillar ranking, 5 policies, 10 AI, 11 environments, 12 style, 13 migration, 14 security level, 16 application type, 17 analytics | yes | |
 | 2 cloud platforms | the list, linking each provider file | |
 | 3 service model | the overall stance | that provider's IaaS and PaaS choices |
 | 6 naming, 7 tags | | each provider's convention and tag keys |
