@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.3 — 2026-09-28
+
+### Da Vinci
+
+- **Mobile follow-ups to question 16.** When the answer is mobile or hybrid, Da Vinci also asks which platforms (iOS, Android or both), and whether the apps are native per platform or built with one cross-platform framework (for example React Native, Flutter or .NET MAUI). A pure web application skips both.
+
 ## 1.9.2 — 2026-09-28
 
 ### Da Vinci

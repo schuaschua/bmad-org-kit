@@ -1,7 +1,7 @@
 code: org
 name: "Org Kit"
 description: "Organisation layer for BMad Method projects: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides, Jules (IT governance), Scrooge McDuck (token usage and cost estimates) and Da Vinci (architecture principles, diagrams and design documents)"
-module_version: 1.9.2
+module_version: 1.9.3
 default_selected: false
 module_greeting: >
   Org Kit is installed. The org standards baselines are in your standards folder and the blank
