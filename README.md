@@ -2,7 +2,7 @@
 
 A BMad module that adds the organisation layer to a BMad Method (`bmm`) project: org standards, governance sign-off, cost estimates, design documents and diagrams, and a count of what the AI-assisted delivery itself cost. Everything is produced inside the BMad flow, from the artifacts BMad already writes: the spine, spec, UX docs, epics and sprint status.
 
-Version 1.9.2 ([CHANGELOG.md](CHANGELOG.md)).
+Version 1.9.3 ([CHANGELOG.md](CHANGELOG.md)).
 
 ## What's in it
 
@@ -109,7 +109,7 @@ Da Vinci is a memory agent. He remembers the principles you held firm on and the
     13. for a migration, comfort with AI running it;
     14. the security level (Very strict to Relaxed);
     15. the approved stack for the front end, back end, database, CI/CD and AI platform;
-    16. a pure web application, a pure mobile application, or hybrid (both).
+    16. a pure web application, a pure mobile application, or hybrid (both); for mobile, which platforms (iOS, Android or both) and native or cross-platform.
   - The answers become a Context table, and the ones that constrain the design become principles (`P-1`, `P-2` ...): testable rules with their reason, pillar and source. Skipped questions stay open.
   - He shows you a summary of every answer, the principles and the open questions, and writes only once you confirm it.
   - Cloud-neutral answers go in `docs/architecture/architecture.md`. Each cloud you name gets its own file beside it (`azure.md`, `aws.md` ...), holding its services, naming, tags, regions, connectivity and principles. Principle numbers are unique across the files.

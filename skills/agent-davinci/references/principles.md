@@ -68,9 +68,11 @@ Ask in this order, one or two at a time. Where the answer is a choice, offer the
     - c. database
     - d. CI/CD
     - e. AI platform
-16. **Application type:** is this a pure web application, a pure mobile application, or hybrid (both web and mobile)?
+16. **Application type:** is this a pure web application, a pure mobile application, or hybrid (both web and mobile)? If mobile or hybrid, ask two follow-ups:
+    - which platforms: iOS, Android, or both;
+    - native apps per platform, or one cross-platform framework (for example React Native, Flutter or .NET MAUI).
 
-Skip a question that no longer applies: no on-premises environment means no question 9, and no AI in the project means no follow-ups to question 10.
+Skip a question that no longer applies: no on-premises environment means no question 9, and no AI in the project means no follow-ups to question 10, and a pure web application means no follow-ups to question 16.
 
 Then offer to add any further guardrails the answers suggest, such as a cost ceiling, a recovery target (RTO and RPO) or data residency. Stop when {user_name} says so.
 
