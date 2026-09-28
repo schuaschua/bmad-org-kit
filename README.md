@@ -184,4 +184,4 @@ Validate the module with the BMad Module Builder's Validate Module (VM) path on 
 
 ## License
 
-TODO (owner to choose).
+MIT. See [LICENSE](LICENSE).
