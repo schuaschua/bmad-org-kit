@@ -1,6 +1,6 @@
 ---
 name: principles
-description: Before bmad-architecture begins, settle the architecture questions (environment, cloud, service model, Well-Architected priorities, policies, naming, tags, regions, on-premises links, AI, environments, style, migration, security, approved stack) with the user, asking only what the project's documents leave open, confirm a summary, and write docs/architecture/architecture.md plus one file per cloud provider; or revise them
+description: Before bmad-architecture begins, settle the architecture questions (environment, cloud, service model, Well-Architected priorities, policies, naming, tags, regions, on-premises links, AI, environments, style, migration, security, approved stack, web or mobile) with the user, asking only what the project's documents leave open, confirm a summary, and write docs/architecture/architecture.md plus one file per cloud provider; or revise them
 code: AP
 added: 2026-09-28
 type: prompt
@@ -51,7 +51,7 @@ Ask in this order, one or two at a time. Where the answer is a choice, offer the
 3. **Service model:** mainly IaaS, mainly PaaS, or a mix (and SaaS where it fits)? With several providers, ask per provider.
 4. **Well-Architected priorities:** rank the six pillars from 1 (cares most) to 6: cost optimization, performance efficiency, reliability, security, operational excellence, sustainability. The ranking decides the trade-offs, so each later principle should say which pillar it serves.
 5. **Policies and guidelines:** do they have architecture policies or guidelines the solution must adhere to? If yes, ask them to place the documents in the architecture folder, then read them.
-   - Questions 6 to 15 are then answered from those documents first. Ask only what the documents leave open, and cite the document for everything else.
+   - Questions 6 onwards are then answered from those documents first. Ask only what the documents leave open, and cite the document for everything else.
    - If there are none, carry on to question 6 and ask the rest directly.
 6. **Naming convention:** which one to follow, per provider. Suggest `<orgname>-<region>-<appname>-<resourceType>-<number>`, using that provider's resource type abbreviations.
 7. **Tags:** which tags matter most to the organisation (for example owner, cost centre, environment, data classification, application).
@@ -68,6 +68,7 @@ Ask in this order, one or two at a time. Where the answer is a choice, offer the
     - c. database
     - d. CI/CD
     - e. AI platform
+16. **Application type:** is this a pure web application, a pure mobile application, or hybrid (both web and mobile)?
 
 Skip a question that no longer applies: no on-premises environment means no question 9, and no AI in the project means no follow-ups to question 10.
 
@@ -90,7 +91,7 @@ Where an answer goes:
 
 | Answer | `architecture.md` | `<provider>.md` |
 | --- | --- | --- |
-| 1 environment, 4 pillar ranking, 5 policies, 10 AI, 11 environments, 12 style, 13 migration, 14 security level | yes | |
+| 1 environment, 4 pillar ranking, 5 policies, 10 AI, 11 environments, 12 style, 13 migration, 14 security level, 16 application type | yes | |
 | 2 cloud platforms | the list, linking each provider file | |
 | 3 service model | the overall stance | that provider's IaaS and PaaS choices |
 | 6 naming, 7 tags | | each provider's convention and tag keys |
