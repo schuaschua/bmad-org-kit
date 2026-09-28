@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.9.2 — 2026-09-28
+
+### Da Vinci
+
+- **New question 16: application type.** Is this a pure web application, a pure mobile application, or hybrid (both web and mobile)? The answer goes in `architecture.md`'s Context table. Like the others, it isn't asked when the project's documents already answer it.
+- When you give him architecture policies (question 5), questions 6 onwards (previously 6 to 15) are answered from them first, so questions added later are covered too.
+
+### Upgrading
+
+- In a project that already has `_bmad/custom/bmad-architecture.toml`, you can merge the updated `activation_steps_prepend` wording; the older wording still works.
+
 ## 1.9.1 — 2026-09-28
 
 ### Da Vinci
