@@ -54,7 +54,7 @@ class InstallOrgAssetsTests(unittest.TestCase):
         for name in ["TechnicalArchitectureAssessment.docx", "DataGovernancePrivacyAssessment.docx", "EnterpriseAIRiskAssessment.docx"]:
             self.assertTrue((self.root / "docs" / "governance" / name).is_file(), name)
         custom = self.root / "_bmad" / "custom"
-        self.assertEqual(len(out["overrides"]["written"]), 7)
+        self.assertEqual(len(out["overrides"]["written"]), 8)
         dev = tomllib.loads((custom / "bmad-agent-dev.toml").read_text(encoding="utf-8"))
         self.assertEqual(dev["agent"]["persistent_facts"], ["file:docs/standards/*.md"])
         epics = tomllib.loads((custom / "bmad-create-epics-and-stories.toml").read_text(encoding="utf-8"))
@@ -64,10 +64,15 @@ class InstallOrgAssetsTests(unittest.TestCase):
         self.assertEqual(arch["workflow"]["persistent_facts"], ["file:docs/standards/*.md"])
         self.assertIn("Jules", arch["workflow"]["on_complete"])
         self.assertIn("Scrooge", arch["workflow"]["on_complete"])
+        self.assertIn("leonardo-da-vinci", arch["workflow"]["on_complete"])
         for name in ("bmad-build.toml", "bmad-build-auto.toml"):
             build = tomllib.loads((custom / name).read_text(encoding="utf-8"))
             self.assertEqual(build["workflow"]["persistent_facts"], ["file:docs/standards/*.md"])
             self.assertIn("close out the project", build["workflow"]["on_complete"])
+            self.assertIn("ai_feedback.py", build["workflow"]["on_complete"])
+        retro = tomllib.loads((custom / "bmad-retrospective.toml").read_text(encoding="utf-8"))
+        self.assertIn("1 (very poor) to 5 (excellent)", retro["workflow"]["on_complete"])
+        self.assertIn("not grounded in company data", retro["workflow"]["on_complete"])
 
     def test_never_overwrites_existing_files(self):
         standards = self.root / "docs" / "standards"

@@ -269,6 +269,25 @@ def test_close_out_sheets_tables_and_facts(project, capsys):
     assert costs == pytest.approx(out["figures"]["grand_total"]["total"], abs=0.05)
 
 
+
+def test_close_out_ai_feedback_sheet(project, capsys):
+    close_out_files(project)
+    (project / "_bmad" / "memory" / "agent-scrooge" / "ai-feedback.csv").write_text(
+        "epic,rating,poor,categories,other,comment,status,recorded\n"
+        "epic-1,4,no,,,,rated,2026-09-10\n"
+        "epic-2,2,yes,AI testing standards not up to quality; Other,ignored the API contract,,rated,2026-09-15\n"
+        "epic-3,,,,,,skipped,2026-09-20\n")
+    write_model(project, model(close_out={}))
+    code, out = run(project, "demo.estimate.json", capsys=capsys)
+    assert code == 0, out
+    wb = openpyxl.load_workbook(out["workbook"])
+    assert wb.sheetnames[-2:] == ["AI Feedback", "Sources & Gaps"]
+    fb = wb["AI Feedback"]
+    assert "tblAIFeedback" in fb.tables and fb.tables["tblAIFeedback"].ref == "A4:H7"
+    assert (fb["B6"].value, fb["E6"].value, fb["B7"].value) == (2, "ignored the API contract", None)
+    assert fb["B8"].value == '=IFERROR(AVERAGE(B5:B7),"")'
+
+
 def test_close_out_formulas_match(project, capsys):
     formulas = pytest.importorskip("formulas")
     close_out_files(project)

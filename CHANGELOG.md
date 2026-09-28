@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.7.0 — 2026-09-28
+
+### Scrooge McDuck
+
+- **End-of-epic AI feedback (EF).** At the end of every epic the team is asked to rate the AI from 1 (very poor) to 5 (excellent). Only for a poor rating (1 or 2), a second question asks what went wrong, one or more of: AI coding standard not up to quality; AI testing standards not up to quality; AI decision-making was flawed; AI answers were not grounded in company data; Poor AI security / compliance suggestions; Other (please specify).
+  - Who asks: the `bmad-build` override, after the story that finishes an epic; the new `bmad-retrospective` override, after the epic retrospective; and Scrooge on waking, for any finished epic still unrated. `bmad-build-auto` runs unattended, so it only mentions the epics waiting to be rated.
+  - `ai_feedback.py` finds finished epics from the sprint status (`pending`), validates and records the answers (`record`, or `--skip` when the team declines), one row per epic, in `_bmad/memory/agent-scrooge/ai-feedback.csv`, committed with the project.
+  - The close-out asks for any missing rating, adds an **AI Feedback** sheet (`tblAIFeedback`, with the average rating) to the workbook and reports the poor epics and recurring reasons.
+
+### Leonardo da Vinci
+
+- **Offered after the architecture.** When `bmad-architecture` finishes, its override now offers Leonardo's architecture diagrams alongside Jules's assessments and Scrooge's cost estimate (Leonardo first when Jules is chosen too, so the answers can cite the diagrams).
+
+### Repository
+
+- The kit moved to the `schuaschua` organisation: install with `npx bmad-method install --custom-source https://github.com/schuaschua/bmad-org-kit`. The old `darrel1234/bmad-org-kit` URL redirects.
+- The "Check it's working" section of the README lists the checks to run after installing or updating: overrides, skill paths, `uv`, and when each prompt should appear.
+
+### Upgrading
+
+- Setup never overwrites an existing override. In a project that already has `_bmad/custom/bmad-architecture.toml`, `bmad-build.toml` or `bmad-build-auto.toml`, rerun "setup Org Kit" and merge the suggested `on_complete` it shows; `bmad-retrospective.toml` is new and is written as is.
+
 ## 1.6.0 — 2026-09-28
 
 ### Scrooge McDuck
