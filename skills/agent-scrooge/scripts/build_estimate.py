@@ -9,11 +9,16 @@ The model (<name>.estimate.json, in the org config's cost_estimates_folder, defa
 docs/cost_estimates/) lists every environment's cloud line items, the delivery team, other one-off
 costs and the gaps, each line citing where it came from. The workbook has:
 
-  Overall          inputs (days of delivery, working days per month, hours per month, months of run,
-                   contingency, exchange rate), the delivery team (employees x days x allocation =
-                   mandays, priced from the rate card) and the cost summary gathering every sheet
+  Overall          inputs (days of delivery, working days per month, hours per month, years of run
+                   after go-live (3-5), yearly increase in run costs, contingency, exchange rate), the
+                   delivery team (employees x days x allocation = mandays, priced from the rate card),
+                   the run support team (OPEX: mandays per year) and the cost summary gathering every sheet
+  Multi-Year       the build, then Year 1..5 (zero past the horizon): revenue, every cost, contingency,
+                   net and cumulative net, payback and return on cost
+  Revenue          yearly revenue per stream, from the owner or the business case
+  Run Costs        recurring yearly costs outside the environments and the support team
   <environment>    one sheet per environment: component, Azure service, SKU, unit price, quantity,
-                   usage per month, monthly and annual cost, citation and price source
+                   usage per month, monthly, daily and annual cost, citation and price source
   Rate Card        role -> day rate, from the project's rate card
   Other Costs      one-off costs (licences, pen test, training ...)
   Sources & Gaps   price basis, assumptions, what is not priced yet, and the stamp of every cited file
@@ -32,13 +37,17 @@ Model (JSON):
    "cloud_currency": "USD", "fx_rate": 3.6725, "fx_source": "...",    only when prices differ
    "pricing_region": "uaenorth", "price_date": "2026-09-28",
    "assumptions": {"delivery_days": 60, "working_days_per_month": 21, "hours_per_month": 730,
-                   "run_months": 12, "contingency_pct": 10},
-   "environments": [{"name": "Dev", "delivery_months": null, "run_months": null, "items": [
+                   "horizon_years": 5, "cost_escalation_pct": 3, "contingency_pct": 10},
+   "environments": [{"name": "Dev", "delivery_months": null, "run_months_per_year": 12, "items": [
        {"component": "API", "service": "Azure Kubernetes Service", "sku": "Standard_D4s_v5 node",
         "unit": "1 Hour", "unit_price": 0.235, "quantity": 2, "usage": "hours",
         "cite": "_bmad-output/planning-artifacts/architecture/x/ARCHITECTURE-SPINE.md AD-4",
         "price_source": "Azure Retail Prices API ... meterId ..., fetched 2026-09-28", "note": ""}]}],
    "team": [{"role": "Developer", "employees": 3, "days": null, "allocation": 1, "cite": "..."}],
+   "support": [{"role": "Developer", "mandays_per_year": 60, "cite": "owner: Delivery Manager, 2026-09-28"}],
+   "run_costs": [{"item": "Support contract", "annual_cost": 12000, "cite": "owner: ..."}],
+   "revenue": [{"stream": "Subscriptions", "basis": "1,000 customers x $20/month", "amounts": [240000, 300000, 360000,
+                420000, 480000], "cite": "_bmad-output/specs/SPEC.md 7 Business case"}],
    "other_costs": [{"item": "Penetration test", "cost": 40000, "cite": "owner: Tech Lead, 2026-09-28"}],
    "gaps": ["Prod DR region: the spine does not say whether there is one"],
    "close_out": {"fx_rate": 3.6725, "fx_source": "...", "in_totals": true}}    optional, at the project's end
@@ -53,7 +62,8 @@ Model (JSON):
   cite: "<project-relative file> [<text that appears in it, e.g. AD-4 or a heading>]",
         "owner: <who, date>" for a figure the owner gave, or "assumption: <what and why>".
   usage: units per month per quantity; "hours" means the Hours per month input (always-on).
-  null delivery_months / run_months / days mean the Overall inputs.
+  null delivery_months / days mean the Overall inputs; run_months_per_year defaults to 12.
+  revenue amounts: one per year of the horizon (up to 5), never invented: from the owner or a cited business case.
 
 Rate card: <project>/_bmad/memory/agent-scrooge/rate-card.json (or --rate-card, or "rate_card" in
 the model): {"currency": "AED", "updated": "2026-09-28", "source": "...",
@@ -78,13 +88,16 @@ import json
 import re
 import sys
 import tomllib
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 DATA_DIR = Path("_bmad") / "memory" / "agent-scrooge"
-RESERVED = {"overall", "rate card", "other costs", "sources & gaps"}
+RESERVED = {"overall", "rate card", "other costs", "run costs", "revenue", "multi-year", "epics", "sprints", "sources & gaps",
+            "claude prices", "claude usage", "claude usage detail", "claude usage daily", "project timeline"}
 SPARE_ROWS = 3
-DEFAULTS = {"working_days_per_month": 21, "hours_per_month": 730, "run_months": 12, "contingency_pct": 0}
+DEFAULTS = {"working_days_per_month": 21, "hours_per_month": 730, "horizon_years": 5, "cost_escalation_pct": 0,
+            "contingency_pct": 0, "sprint_days": 10}
+MAX_YEARS = 5  # the Multi-Year sheet always has five year columns; years past the horizon show zero
 
 # --------------------------------------------------------------------------- inputs
 
@@ -175,9 +188,14 @@ def validate(root: Path, model: dict, card: dict) -> list[str]:
     for key in ("working_days_per_month", "hours_per_month"):
         if key in a and not is_number(a[key], strict=True):
             errors.append(f"assumptions.{key}: a positive number")
-    for key in ("run_months", "contingency_pct"):
+    for key in ("cost_escalation_pct", "contingency_pct"):
         if key in a and not is_number(a[key]):
             errors.append(f"assumptions.{key}: zero or more")
+    if "run_months" in a:
+        errors.append("assumptions.run_months: replaced by horizon_years (3 to 5 years of run after go-live)")
+    horizon = a.get("horizon_years", DEFAULTS["horizon_years"])
+    if horizon not in (3, 4, 5):
+        errors.append("assumptions.horizon_years: 3, 4 or 5 years of run after go-live")
 
     envs = model.get("environments") or []
     if not envs:
@@ -191,9 +209,13 @@ def validate(root: Path, model: dict, card: dict) -> list[str]:
         if name.lower() in RESERVED or name.lower() in seen:
             errors.append(f"{where}: name clashes with another sheet")
         seen.add(name.lower())
-        for key in ("delivery_months", "run_months"):
-            if env.get(key) is not None and not is_number(env[key]):
-                errors.append(f"{where}.{key}: zero or more, or null for the Overall input")
+        if env.get("delivery_months") is not None and not is_number(env["delivery_months"]):
+            errors.append(f"{where}.delivery_months: zero or more, or null for the Overall input")
+        if "run_months" in env:
+            errors.append(f"{where}.run_months: replaced by run_months_per_year (how many months a year it runs, default 12)")
+        per_year = env.get("run_months_per_year", 12)
+        if not is_number(per_year) or per_year > 12:
+            errors.append(f"{where}.run_months_per_year: 0 to 12")
         if not env.get("items"):
             errors.append(f"{where}: no items (an environment with nothing priced belongs in gaps)")
         for i_i, item in enumerate(env.get("items") or []):
@@ -229,8 +251,75 @@ def validate(root: Path, model: dict, card: dict) -> list[str]:
         if not is_number(alloc, strict=True) or alloc > 1:
             errors.append(f"{tw}: allocation is a fraction above 0 and at most 1")
         check_cite(root, member.get("cite"), tw, errors)
+    for s_i, member in enumerate(model.get("support") or []):
+        sw = f"support[{s_i}] '{member.get('role', '')}'"
+        if str(member.get("role", "")).lower() not in rates:
+            errors.append(f"{sw}: role is not on the rate card")
+        if not is_number(member.get("mandays_per_year"), strict=True):
+            errors.append(f"{sw}: mandays_per_year must be above zero")
+        check_cite(root, member.get("cite"), sw, errors)
+    for r_i, run in enumerate(model.get("run_costs") or []):
+        rw = f"run_costs[{r_i}] '{run.get('item', '')}'"
+        if not run.get("item") or not is_number(run.get("annual_cost")):
+            errors.append(f"{rw}: needs item and an annual_cost of zero or more")
+        check_cite(root, run.get("cite"), rw, errors)
+    for v_i, stream in enumerate(model.get("revenue") or []):
+        vw = f"revenue[{v_i}] '{stream.get('stream', '')}'"
+        amounts = stream.get("amounts")
+        if not stream.get("stream"):
+            errors.append(f"{vw}: stream (what earns it) is required")
+        if not (isinstance(amounts, list) and amounts and all(is_number(x) for x in amounts)):
+            errors.append(f"{vw}: amounts is a list of yearly revenue, zero or more each")
+        elif not isinstance(horizon, int) or len(amounts) < horizon:
+            errors.append(f"{vw}: give an amount for each of the {horizon} years of the horizon")
+        elif len(amounts) > MAX_YEARS:
+            errors.append(f"{vw}: at most {MAX_YEARS} yearly amounts")
+        check_cite(root, stream.get("cite"), vw, errors)
+    numbers = []
+    for x_i, epic in enumerate(model.get("epics") or []):
+        xw = f"epics[{x_i}] '{epic.get('epic', '')}'"
+        if not isinstance(epic.get("number"), int) or isinstance(epic.get("number"), bool) or epic["number"] < 1:
+            errors.append(f"{xw}: number is the epic's number (1, 2, ...), as in the story numbers 1.1, 1.2")
+        elif epic["number"] in numbers:
+            errors.append(f"{xw}: epic number {epic['number']} is used twice")
+        numbers.append(epic.get("number"))
+        if not epic.get("epic"):
+            errors.append(f"{xw}: epic (its name) is required")
+        if not (isinstance(epic.get("deliverables"), list) and all(isinstance(d, str) and d for d in epic["deliverables"])):
+            errors.append(f"{xw}: deliverables is a list of the epic's stories or outputs")
+        if not is_number(epic.get("days"), strict=True):
+            errors.append(f"{xw}: days (working days) must be above zero")
+        if epic.get("api_budget") is not None and not is_number(epic["api_budget"]):
+            errors.append(f"{xw}: api_budget is zero or more, or left out")
+        if epic.get("actual_team_cost") is not None and not is_number(epic["actual_team_cost"]):
+            errors.append(f"{xw}: actual_team_cost (from timesheets) is zero or more, or left out")
+        for key in ("actual_start", "actual_end"):
+            if epic.get(key):
+                try:
+                    datetime.fromisoformat(str(epic[key])[:10])
+                except ValueError:
+                    errors.append(f"{xw}: {key} is a date, YYYY-MM-DD")
+        check_cite(root, epic.get("cite"), xw, errors)
+    if "sprint_days" in a and (not isinstance(a["sprint_days"], int) or a["sprint_days"] < 1):
+        errors.append("assumptions.sprint_days: working days per sprint, a whole number of 1 or more")
+    for p_i, sprint in enumerate(model.get("sprints") or []):
+        pw = f"sprints[{p_i}]"
+        if not isinstance(sprint.get("number"), int) or sprint["number"] < 1:
+            errors.append(f"{pw}: number is the sprint's number (1, 2, ...)")
+        if sprint.get("stories") is not None and not (isinstance(sprint["stories"], list) and all(isinstance(x, str) for x in sprint["stories"])):
+            errors.append(f"{pw}: stories is a list of the stories planned for the sprint")
+        for key in ("api_budget", "actual_team_cost"):
+            if sprint.get(key) is not None and not is_number(sprint[key]):
+                errors.append(f"{pw}: {key} is zero or more, or left out")
+    if a.get("start_date"):
+        try:
+            datetime.fromisoformat(str(a["start_date"]))
+        except ValueError:
+            errors.append("assumptions.start_date: a date, YYYY-MM-DD")
     for o_i, other in enumerate(model.get("other_costs") or []):
         ow = f"other_costs[{o_i}] '{other.get('item', '')}'"
+        if other.get("epic") is not None and other["epic"] not in numbers:
+            errors.append(f"{ow}: epic {other['epic']} is not one of the epics")
         if not other.get("item") or not is_number(other.get("cost")):
             errors.append(f"{ow}: needs item and a cost of zero or more")
         check_cite(root, other.get("cite"), ow, errors)
@@ -261,7 +350,8 @@ def load_close_out(root: Path, model: dict) -> tuple[dict | None, list[str]]:
 
     ledger, prices_file = path("ledger", ledger_dir / "claude_usage.csv"), path("prices", root / DATA_DIR / "claude-prices.json")
     timeline_file = path("timeline", ledger_dir / "project_timeline.csv")
-    usage, prices, timeline = [], {}, []
+    daily_file = path("daily", ledger_dir / "claude_usage_daily.csv")
+    usage, prices, timeline, daily = [], {}, [], []
     if not ledger.is_file():
         errors.append(f"close_out: no Claude usage ledger at {ledger}; refresh it with token_report.py")
     else:
@@ -274,6 +364,9 @@ def load_close_out(root: Path, model: dict) -> tuple[dict | None, list[str]]:
     if timeline_file.is_file():
         with timeline_file.open(newline="", encoding="utf-8") as fh:
             timeline = list(csv.DictReader(fh))
+    if daily_file.is_file():
+        with daily_file.open(newline="", encoding="utf-8") as fh:
+            daily = [r for r in csv.DictReader(fh) if int(r.get("calls") or 0)]
     ccy = model.get("currency")
     if ccy != "USD" and not is_number(spec.get("fx_rate"), strict=True):
         errors.append(f"close_out.fx_rate: Claude prices are in USD; give the rate to {ccy} (and fx_source)")
@@ -281,10 +374,10 @@ def load_close_out(root: Path, model: dict) -> tuple[dict | None, list[str]]:
     tokens = ("input_tokens", "cache_write_5m_tokens", "cache_write_1h_tokens", "cache_read_tokens", "output_tokens")
     unpriced = sorted({r["model"] for r in usage if pricing_id(r["model"]) not in known
                        and any(int(r.get(t) or 0) for t in tokens)})
-    return {"usage": usage, "prices": prices, "timeline": timeline, "unpriced": unpriced,
+    return {"usage": usage, "prices": prices, "timeline": timeline, "daily": daily, "unpriced": unpriced,
             "fx_rate": spec.get("fx_rate", 1) if ccy != "USD" else 1, "fx_source": spec.get("fx_source", ""),
             "in_totals": spec.get("in_totals", True),
-            "files": [p for p in (ledger, prices_file, timeline_file) if p.is_file()]}, errors
+            "files": [p for p in (ledger, prices_file, timeline_file, daily_file) if p.is_file()]}, errors
 
 
 def claude_cost(close: dict) -> tuple[float, int]:
@@ -306,9 +399,23 @@ def claude_cost(close: dict) -> tuple[float, int]:
 def settings(model: dict) -> dict:
     a = {**DEFAULTS, **model.get("assumptions", {})}
     a["contingency"] = a["contingency_pct"] / 100
+    a["escalation"] = a["cost_escalation_pct"] / 100
     a["delivery_months"] = a["delivery_days"] / a["working_days_per_month"]
+    h, e = a["horizon_years"], a["escalation"]
+    a["horizon_factor"] = h if e == 0 else ((1 + e) ** h - 1) / e  # sum of (1+e)^(k-1) over the run years
     a["fx_rate"] = model.get("fx_rate", 1) if model.get("cloud_currency", model["currency"]) != model["currency"] else 1
+    a["start"] = datetime.fromisoformat(a["start_date"]) if a.get("start_date") else None
     return a
+
+
+def add_workdays(day, n: int):
+    """Excel's WORKDAY: n working days (Monday to Friday) after day."""
+    step = 1 if n >= 0 else -1
+    while n:
+        day += timedelta(days=step)
+        if day.weekday() < 5:
+            n -= step
+    return day
 
 
 def item_usage(item: dict, a: dict) -> float:
@@ -318,42 +425,163 @@ def item_usage(item: dict, a: dict) -> float:
 
 def compute(model: dict, card: dict, close: dict | None = None) -> dict:
     a = settings(model)
+    h, e, cont = a["horizon_years"], a["escalation"], a["contingency"]
     rates = {str(r["role"]).lower(): r["day_rate"] for r in card.get("roles", [])}
     envs = []
     for env in model["environments"]:
         monthly = sum(i["unit_price"] * i["quantity"] * item_usage(i, a) * a["fx_rate"] for i in env["items"])
         d_months = a["delivery_months"] if env.get("delivery_months") is None else env["delivery_months"]
-        r_months = a["run_months"] if env.get("run_months") is None else env["run_months"]
-        envs.append({"name": env["name"], "monthly": monthly, "delivery": monthly * d_months,
-                     "run": monthly * r_months})
+        per_year = monthly * env.get("run_months_per_year", 12)
+        envs.append({"name": env["name"], "monthly": monthly, "daily": monthly * 12 / 365, "delivery": monthly * d_months,
+                     "run_per_year": per_year, "run": per_year * a["horizon_factor"]})
     mandays = people = 0.0
     for m in model.get("team") or []:
         days = a["delivery_days"] if m.get("days") is None else m["days"]
         md = m["employees"] * days * m.get("allocation", 1)
         mandays += md
         people += md * rates[m["role"].lower()]
+    support_md = sum(m["mandays_per_year"] for m in model.get("support") or [])
+    support = sum(m["mandays_per_year"] * rates[m["role"].lower()] for m in model.get("support") or [])
+    run_costs = sum(r["annual_cost"] for r in model.get("run_costs") or [])
     other = sum(o["cost"] for o in model.get("other_costs") or [])
     claude = None
     if close:
         usd, calls = claude_cost(close)
         claude = {"calls": calls, "usd": round(usd, 2), "cost": round(usd * close["fx_rate"], 2),
                   "in_totals": bool(close["in_totals"]), "unpriced_models": close["unpriced"]}
-    delivery = sum(e["delivery"] for e in envs) + people + other + (claude["cost"] if claude and claude["in_totals"] else 0)
-    run = sum(e["run"] for e in envs)
+    delivery = sum(x["delivery"] for x in envs) + people + other + (claude["cost"] if claude and claude["in_totals"] else 0)
+    run_per_year = sum(x["run_per_year"] for x in envs) + support + run_costs
+    run = run_per_year * a["horizon_factor"]
+
+    # Multi-year view: the build, then years 1..5 (zero past the horizon), contingency on every cost
+    revenue = [0.0] * MAX_YEARS
+    for stream in model.get("revenue") or []:
+        for k, amount in enumerate(stream["amounts"][:MAX_YEARS]):
+            revenue[k] += amount
+    rev = [0.0] + [revenue[k] if k < h else 0.0 for k in range(MAX_YEARS)]
+    costs = [delivery * (1 + cont)] + [run_per_year * (1 + e) ** k * (1 + cont) if k < h else 0.0 for k in range(MAX_YEARS)]
+    net = [r_ - c for r_, c in zip(rev, costs)]
+    cumulative, running = [], 0.0
+    for n in net:
+        running += n
+        cumulative.append(running)
+    epic_list = model.get("epics") or []
+    epic_days = sum(x["days"] for x in epic_list)
+    env_delivery = sum(x["delivery"] for x in envs)
+    story_cost: dict[str, float] = {}
+    if close:
+        known = close["prices"].get("models", {})
+        for u in close["usage"]:
+            price = known.get(pricing_id(u["model"]))
+            if price and u.get("story_no"):
+                story_cost[u["story_no"]] = story_cost.get(u["story_no"], 0) + sum(
+                    int(u[f"{k_}_tokens"] or 0) * price[k_] for k_ in
+                    ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")) / 1e6 * close["fx_rate"]
+    timeline = {t["name"]: t for t in (close or {}).get("timeline", []) if t.get("category") == "epic"}
+    epics_out, day = [], a["start"]
+    for x in epic_list:
+        share = x["days"] / epic_days
+        team_x, infra_x = people * share, env_delivery * share
+        other_x = sum(o["cost"] for o in model.get("other_costs") or [] if o.get("epic") == x["number"])
+        actual_api = sum(v for k_, v in story_cost.items() if k_.startswith(f"{x['number']}."))
+        start = end = None
+        if day:
+            start = day if not epics_out else add_workdays(day, 1)
+            end = add_workdays(start, int(x["days"]) - 1)
+            day = end
+        forecast = team_x + infra_x + other_x + (x.get("api_budget") or 0)
+        t = timeline.get(f"epic-{x['number']}", {})
+        a_start = x.get("actual_start") or t.get("started")
+        a_end = x.get("actual_end") or (t.get("completed") if t.get("status", "done") == "done" else None)
+        out_x = {"number": x["number"], "epic": x["epic"], "days": x["days"], "weeks": x["days"] / 5,
+                 "start": start.date().isoformat() if start else None, "end": end.date().isoformat() if end else None,
+                 "share": share, "mandays": mandays * share, "team_cost": team_x, "infra_cost": infra_x,
+                 "other_costs": other_x, "api_budget": x.get("api_budget"), "forecast_total": forecast,
+                 "actual_start": a_start[:10] if a_start else None, "actual_end": a_end[:10] if a_end else None,
+                 "actual_days": None, "days_variance": None, "days_variance_pct": None,
+                 "api_actual": actual_api if close else None, "actual_team_cost": None, "actual_total": None,
+                 "cost_variance": None}
+        if a_start and a_end:
+            s_, e_ = datetime.fromisoformat(a_start[:10]), datetime.fromisoformat(a_end[:10])
+            days_a = sum(1 for k_ in range((e_ - s_).days + 1) if (s_ + timedelta(days=k_)).weekday() < 5)
+            ratio = days_a / x["days"]
+            team_a = x["actual_team_cost"] if x.get("actual_team_cost") is not None else team_x * ratio
+            total_a = team_a + infra_x * ratio + other_x + actual_api
+            out_x.update(actual_days=days_a, days_variance=days_a - x["days"], days_variance_pct=ratio - 1,
+                         actual_team_cost=team_a, actual_total=total_a, cost_variance=total_a - forecast)
+        epics_out.append(out_x)
+    # Sprints: fixed timeboxes of sprint_days working days from the start date; actuals up to the last actual activity
+    sprints_out = []
+    planned = {x["number"]: x for x in model.get("sprints") or []}
+    sd, dd = int(a["sprint_days"]), a["delivery_days"]
+    known = (close or {}).get("prices", {}).get("models", {})
+    daily_cost = []
+    for u in (close or {}).get("daily") or []:
+        price = known.get(pricing_id(u["model"]))
+        cost = sum(int(u.get(f"{k_}_tokens") or 0) * price[k_] for k_ in
+                   ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")) / 1e6 if price else 0
+        daily_cost.append((u["day"][:10], cost * close["fx_rate"]))
+    done_stories = [(t["completed"][:10], t["name"]) for t in (close or {}).get("timeline") or []
+                    if t.get("category") == "story" and t.get("completed")]
+    last_actual = max([d for d, _ in done_stories] + [d for d, _ in daily_cost], default=None)
+    burn, infra_burn = people / dd, env_delivery / dd
+    k = 0
+    while True:
+        k += 1
+        planned_days = min(sd, max(0, dd - (k - 1) * sd))
+        start = add_workdays(a["start"], (k - 1) * sd) if a["start"] else None
+        reached = bool(start and last_actual and start.date().isoformat() <= last_actual)
+        if planned_days <= 0 and not reached:
+            break
+        end = add_workdays(start, sd - 1) if start else None
+        plan = planned.get(k, {})
+        forecast = planned_days * (burn + infra_burn) + (plan.get("api_budget") or 0)
+        row = {"number": k, "start": start.date().isoformat() if start else None, "end": end.date().isoformat() if end else None,
+               "days": planned_days, "planned_stories": plan.get("stories") or [], "team_cost": planned_days * burn,
+               "infra_cost": planned_days * infra_burn, "api_budget": plan.get("api_budget"), "forecast_total": forecast,
+               "days_worked": None, "stories_done": None, "stories_done_list": [], "api_actual": None,
+               "actual_team_cost": None, "actual_total": None, "cost_variance": None}
+        if reached:
+            s_, e_ = row["start"], row["end"]
+            stop = min(end.date(), datetime.fromisoformat(last_actual).date())
+            worked = sum(1 for d_ in range((stop - start.date()).days + 1) if (start.date() + timedelta(days=d_)).weekday() < 5)
+            api = sum(c for d, c in daily_cost if s_ <= d <= e_)
+            team_a = plan["actual_team_cost"] if plan.get("actual_team_cost") is not None else worked * burn
+            total_a = team_a + worked * infra_burn + api
+            row["stories_done_list"] = [n for d, n in sorted(done_stories) if s_ <= d <= e_]
+            row.update(days_worked=worked, stories_done=len(row["stories_done_list"]) if done_stories else None,
+                       api_actual=api if daily_cost else None, actual_team_cost=team_a, actual_total=total_a,
+                       cost_variance=total_a - forecast)
+        sprints_out.append(row)
+
+    periods = ["Build"] + [f"Year {k + 1}" for k in range(MAX_YEARS)]
+    payback = next((p_ for p_, c in zip(periods, cumulative) if c >= 0), "beyond the horizon")
     r2 = lambda x: round(x, 2)  # noqa: E731
+    total_costs = sum(costs)
     return {
         "currency": model["currency"],
+        "horizon_years": h,
         "delivery_months": r2(a["delivery_months"]),
-        "environments": [{k: (r2(v) if isinstance(v, float | int) else v) for k, v in e.items()} for e in envs],
+        "environments": [{k: (r2(v) if isinstance(v, float | int) else v) for k, v in x.items()} for x in envs],
         "team": {"employees": sum(m["employees"] for m in model.get("team") or []), "mandays": r2(mandays),
                  "cost": r2(people)},
+        "support": {"mandays_per_year": r2(support_md), "cost_per_year": r2(support)},
+        "run_costs_per_year": r2(run_costs),
         "other_costs": r2(other),
         **({"claude": claude} if claude else {}),
-        "subtotal": {"delivery": r2(delivery), "run": r2(run), "total": r2(delivery + run)},
-        "contingency": r2((delivery + run) * a["contingency"]),
-        "grand_total": {"delivery": r2(delivery * (1 + a["contingency"])),
-                        "run": r2(run * (1 + a["contingency"])),
-                        "total": r2((delivery + run) * (1 + a["contingency"]))},
+        "subtotal": {"delivery": r2(delivery), "run_per_year": r2(run_per_year), "run": r2(run), "total": r2(delivery + run)},
+        "contingency": r2((delivery + run) * cont),
+        "grand_total": {"delivery": r2(delivery * (1 + cont)), "run": r2(run * (1 + cont)),
+                        "total": r2((delivery + run) * (1 + cont))},
+        "multi_year": {"periods": periods, "revenue": [r2(x) for x in rev], "costs": [r2(x) for x in costs],
+                       "net": [r2(x) for x in net], "cumulative": [r2(x) for x in cumulative]},
+        "revenue_total": r2(sum(rev)),
+        "net_total": r2(sum(net)),
+        "payback": payback,
+        "roi": round(sum(net) / total_costs, 4) if total_costs else None,
+        "epics": [{k_: (round(v, 4) if k_ in ("share", "days_variance_pct") else r2(v)) if isinstance(v, float) else v
+                   for k_, v in x.items()} for x in epics_out],
+        "sprints": [{k_: r2(v) if isinstance(v, float) else v for k_, v in x.items()} for x in sprints_out],
         "gaps": len(model.get("gaps") or []),
     }
 
@@ -368,7 +596,9 @@ def sha(path: Path) -> str:
 def cited_files(model: dict) -> list[str]:
     cites = [i.get("cite", "") for e in model.get("environments", []) for i in e.get("items", [])]
     cites += [m.get("cite", "") for m in model.get("team") or []]
-    cites += [o.get("cite", "") for o in model.get("other_costs") or []]
+    for key in ("other_costs", "run_costs", "support", "revenue"):
+        cites += [o.get("cite", "") for o in model.get(key) or []]
+    cites += [x.get("cite", "") for x in model.get("epics") or []]
     files = {split_cite(c)[1] for c in cites if isinstance(c, str)}
     return sorted(f for f in files if f)
 
@@ -402,11 +632,13 @@ def drift(root: Path, model: dict) -> dict:
 # --------------------------------------------------------------------------- workbook
 
 
-def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict | None = None) -> list[str]:
+def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict | None = None,
+                   sprint_figures: list | None = None) -> list[str]:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
     from openpyxl.workbook.defined_name import DefinedName
+    from openpyxl.worksheet.datavalidation import DataValidation
     from openpyxl.worksheet.table import Table, TableStyleInfo
 
     a = settings(model)
@@ -468,6 +700,9 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
     ov = wb.active
     ov.title = "Overall"
 
+    YEARS = [f"Year {k}" for k in range(1, MAX_YEARS + 1)]
+    YEAR_COLS = "DEFGH"  # Multi-Year and Revenue: Year 1..5
+
     # --- Environments (built first so Overall can point at their totals)
     env_totals: list[tuple[str, int]] = []
     for env in model["environments"]:
@@ -475,10 +710,10 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
         put(ws, "A1", f"{env['name']} environment", font=TITLE)
         fx_note = f", converted to {ccy} at the Overall exchange rate" if cloud_ccy != ccy else ""
         put(ws, "A2", f"Azure retail list prices (pay-as-you-go) in {region}, {cloud_ccy}, fetched {price_date}"
-                      f"{fx_note}. Blue cells are inputs.")
+                      f"{fx_note}. Daily cost is the monthly cost spread over the year (x 12 / 365). Blue cells are inputs.")
         header(ws, 4, ["#", "Component", "Azure service", "SKU / tier", "Unit", f"Unit price ({cloud_ccy})",
-                       "Quantity", "Usage per month", f"Monthly cost ({ccy})", f"Annual cost ({ccy})",
-                       "Cited from", "Price source", "Note", "Environment"])
+                       "Quantity", "Usage per month", f"Monthly cost ({ccy})", f"Daily cost ({ccy})",
+                       f"Annual cost ({ccy})", "Cited from", "Price source", "Note", "Environment"])
         row = 5
         for n, item in enumerate(env["items"], 1):
             usage = item.get("usage", "hours" if "hour" in str(item.get("unit", "")).lower() else None)
@@ -494,35 +729,37 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
             else:
                 put(ws, f"H{row}", usage, QTY, BLUE)
             put(ws, f"I{row}", f"=F{row}*G{row}*H{row}*FxRate", MONEY)
-            put(ws, f"J{row}", f"=I{row}*12", MONEY)
-            ws.cell(row=row, column=11, value=item["cite"])
-            ws.cell(row=row, column=12, value=item["price_source"])
-            ws.cell(row=row, column=13, value=item.get("note", ""))
-            ws.cell(row=row, column=14, value=env["name"])
-            for c in (11, 12, 13):
+            put(ws, f"J{row}", f"=I{row}*12/365", MONEY)
+            put(ws, f"K{row}", f"=I{row}*12", MONEY)
+            ws.cell(row=row, column=12, value=item["cite"])
+            ws.cell(row=row, column=13, value=item["price_source"])
+            ws.cell(row=row, column=14, value=item.get("note", ""))
+            ws.cell(row=row, column=15, value=env["name"])
+            for c in (12, 13, 14):
                 ws.cell(row=row, column=c).alignment = WRAP
             row += 1
         for _ in range(SPARE_ROWS):
             for col in "FGH":
                 ws[f"{col}{row}"].font = BLUE
             put(ws, f"I{row}", f'=IF(F{row}="","",F{row}*G{row}*H{row}*FxRate)', MONEY)
-            put(ws, f"J{row}", f'=IF(I{row}="","",I{row}*12)', MONEY)
-            ws.cell(row=row, column=14, value=env["name"])
+            put(ws, f"J{row}", f'=IF(I{row}="","",I{row}*12/365)', MONEY)
+            put(ws, f"K{row}", f'=IF(I{row}="","",I{row}*12)', MONEY)
+            ws.cell(row=row, column=15, value=env["name"])
             row += 1
-        add_table(ws, f"tblEnv{env['name']}", "A", 4, "N", row - 1)
+        add_table(ws, f"tblEnv{env['name']}", "A", 4, "O", row - 1)
         put(ws, f"A{row}", "Total")
-        put(ws, f"I{row}", f"=SUM(I5:I{row - 1})", MONEY)
-        put(ws, f"J{row}", f"=SUM(J5:J{row - 1})", MONEY)
-        total_row(ws, row, 13)
+        for col in "IJK":
+            put(ws, f"{col}{row}", f"=SUM({col}5:{col}{row - 1})", MONEY)
+        total_row(ws, row, 14)
         env_totals.append((env["name"], row))
-        widths(ws, [5, 26, 26, 24, 12, 14, 10, 12, 16, 16, 40, 48, 30, 14])
+        widths(ws, [5, 26, 26, 24, 12, 14, 10, 12, 16, 14, 16, 40, 48, 30, 14])
         ws.freeze_panes = "A5"
 
     # --- Rate Card
-    rc = wb.create_sheet("Rate Card", 1)
+    rc = wb.create_sheet("Rate Card")
     put(rc, "A1", "Employee rate card", font=TITLE)
     put(rc, "A2", f"Day rates in {ccy}. Source: {card.get('source', 'not stated')}; updated "
-                  f"{card.get('updated', 'not stated')}. Blue cells are inputs; the Overall team table looks roles up here.")
+                  f"{card.get('updated', 'not stated')}. Blue cells are inputs; the team and support tables look roles up here.")
     header(rc, 4, ["Role", f"Day rate ({ccy})", "Note"])
     r = 5
     for role in card.get("roles", []):
@@ -535,28 +772,76 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
     widths(rc, [30, 16, 50])
     rc.freeze_panes = "A5"
 
-    # --- Other Costs
-    oc = wb.create_sheet("Other Costs", 2)
-    put(oc, "A1", "Other one-off costs", font=TITLE)
-    put(oc, "A2", f"Licences, tests, training and other costs outside the environments and the team, in {ccy}.")
-    header(oc, 4, ["#", "Item", f"Amount ({ccy})", "Cited from", "Note"])
+    def simple_sheet(title: str, heading: str, note: str, amount_label: str, rows: list[tuple], table: str,
+                     epics: list | None = None) -> int:
+        """# | Item | Amount | Cited from | Note [| Epic], with spare rows and a total; returns the total's row."""
+        ws = wb.create_sheet(title)
+        put(ws, "A1", heading, font=TITLE)
+        put(ws, "A2", note)
+        header(ws, 4, ["#", "Item", amount_label, "Cited from", "Note"] + (["Epic"] if epics is not None else []))
+        last_col = "F" if epics is not None else "E"
+        r = 5
+        for n, (item, amount, cite, extra) in enumerate(rows, 1):
+            ws.cell(row=r, column=1, value=n)
+            ws.cell(row=r, column=2, value=item)
+            put(ws, f"C{r}", amount, MONEY, BLUE)
+            ws.cell(row=r, column=4, value=cite)
+            ws.cell(row=r, column=5, value=extra)
+            if epics is not None and epics[n - 1] is not None:
+                put(ws, f"F{r}", epics[n - 1], "0", BLUE)
+            r += 1
+        for _ in range(SPARE_ROWS):
+            ws[f"C{r}"].font = BLUE
+            if epics is not None:
+                ws[f"F{r}"].font = BLUE
+            r += 1
+        add_table(ws, table, "A", 4, last_col, r - 1)
+        put(ws, f"A{r}", "Total")
+        put(ws, f"C{r}", f"=SUM(C5:C{r - 1})", MONEY)
+        total_row(ws, r, 6 if epics is not None else 5)
+        widths(ws, [5, 36, 18, 44, 30, 8])
+        return r
+
+    other_total = simple_sheet(
+        "Other Costs", "Other one-off costs",
+        f"Licences, tests, training and other one-off costs of the build, outside the environments and the team, in {ccy}.",
+        f"Amount ({ccy})", [(o["item"], o["cost"], o["cite"], o.get("note", "")) for o in model.get("other_costs") or []],
+        "tblOtherCosts", epics=[o.get("epic") for o in model.get("other_costs") or []])
+    run_costs_total = simple_sheet(
+        "Run Costs", "Recurring run costs (OPEX)",
+        f"Yearly costs of running the solution outside the cloud environments and the support team: support contracts, "
+        f"licences, subscriptions. In {ccy} per year; the Multi-Year sheet escalates them by the yearly increase.",
+        f"Annual cost ({ccy})", [(x["item"], x["annual_cost"], x["cite"], x.get("note", "")) for x in model.get("run_costs") or []],
+        "tblRunCosts")
+
+    # --- Revenue
+    rv = wb.create_sheet("Revenue")
+    put(rv, "A1", "Revenue", font=TITLE)
+    put(rv, "A2", f"Revenue the solution earns, per year after go-live, in {ccy}, from the owner or the business case; each "
+                  "stream cites its source. Years past the horizon are ignored. Blue cells are inputs.")
+    header(rv, 4, ["#", "Stream", "Basis", *YEARS, "Cited from", "Note"])
     r = 5
-    for n, other in enumerate(model.get("other_costs") or [], 1):
-        oc.cell(row=r, column=1, value=n)
-        oc.cell(row=r, column=2, value=other["item"])
-        put(oc, f"C{r}", other["cost"], MONEY, BLUE)
-        oc.cell(row=r, column=4, value=other["cite"])
-        oc.cell(row=r, column=5, value=other.get("note", ""))
+    for n, stream in enumerate(model.get("revenue") or [], 1):
+        rv.cell(row=r, column=1, value=n)
+        rv.cell(row=r, column=2, value=stream["stream"])
+        rv.cell(row=r, column=3, value=stream.get("basis", ""))
+        for k, col in enumerate(YEAR_COLS):
+            amount = stream["amounts"][k] if k < len(stream["amounts"]) else 0
+            put(rv, f"{col}{r}", amount, MONEY, BLUE)
+        rv.cell(row=r, column=9, value=stream["cite"])
+        rv.cell(row=r, column=10, value=stream.get("note", ""))
         r += 1
     for _ in range(SPARE_ROWS):
-        oc[f"C{r}"].font = BLUE
+        for col in YEAR_COLS:
+            rv[f"{col}{r}"].font = BLUE
         r += 1
-    add_table(oc, "tblOtherCosts", "A", 4, "E", r - 1)
-    put(oc, f"A{r}", "Total")
-    put(oc, f"C{r}", f"=SUM(C5:C{r - 1})", MONEY)
-    total_row(oc, r, 5)
-    other_total = r
-    widths(oc, [5, 36, 16, 44, 30])
+    add_table(rv, "tblRevenue", "A", 4, "J", r - 1)
+    revenue_first, revenue_last = 5, r - 1
+    put(rv, f"A{r}", "Total")
+    for col in YEAR_COLS:
+        put(rv, f"{col}{r}", f"=SUM({col}5:{col}{r - 1})", MONEY)
+    total_row(rv, r, 10)
+    widths(rv, [5, 30, 28, 14, 14, 14, 14, 14, 40, 30])
 
     # --- Overall: inputs
     put(ov, "A1", model.get("title") or f"{model['name']} cost estimate", font=TITLE)
@@ -569,26 +854,37 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
         ("WorkingDaysPerMonth", "Working days per month", a["working_days_per_month"], QTY, True),
         ("DeliveryMonths", "Months of delivery", "=DeliveryDays/WorkingDaysPerMonth", MONTHS, False),
         ("HoursPerMonth", "Hours per month (always-on services)", a["hours_per_month"], QTY, True),
-        ("RunMonths", "Months of run after go-live", a["run_months"], QTY, True),
+        ("ProjectStart", "Delivery start date (optional; dates the epics and sprints)", a.get("start"), "yyyy-mm-dd", True),
+        ("SprintDays", "Working days per sprint", a["sprint_days"], "0", True),
+        ("HorizonYears", "Years of run after go-live (3 to 5)", a["horizon_years"], "0", True),
+        ("CostEscalation", "Yearly increase in run costs", a["escalation"], "0.0%", True),
+        ("HorizonFactor", "Run years, with the yearly increase",
+         "=IF(CostEscalation=0,HorizonYears,((1+CostEscalation)^HorizonYears-1)/CostEscalation)", "0.00", False),
         ("Contingency", "Contingency", a["contingency"], PCT, True),
         ("FxRate", f"Exchange rate (1 {cloud_ccy} = x {ccy})", a["fx_rate"], "0.0000", True),
     ]
     if close:
         inputs.append(("ClaudeFxRate", f"Exchange rate for Claude prices (1 USD = x {ccy})", close["fx_rate"], "0.0000", True))
+    input_row = {}
     for offset, (name, label, value, fmt, is_input) in enumerate(inputs):
         r = 5 + offset
+        input_row[name] = r
         ov.cell(row=r, column=1, value=label)
         put(ov, f"B{r}", value, fmt, BLUE if is_input else None)
         wb.defined_names[name] = DefinedName(name, attr_text=f"Overall!$B${r}")
     add_table(ov, "tblInputs", "A", 4, "B", 4 + len(inputs))
+    horizon_check = DataValidation(type="whole", operator="between", formula1="3", formula2=str(MAX_YEARS),
+                                   showErrorMessage=True, error=f"3 to {MAX_YEARS} years")
+    ov.add_data_validation(horizon_check)
+    horizon_check.add(f"B{input_row['HorizonYears']}")
     if cloud_ccy != ccy:
-        ov.cell(row=11, column=3, value=model.get("fx_source", ""))
+        ov.cell(row=input_row["FxRate"], column=3, value=model.get("fx_source", ""))
     if close and ccy != "USD":
-        ov.cell(row=12, column=3, value=close["fx_source"])
+        ov.cell(row=input_row["ClaudeFxRate"], column=3, value=close["fx_source"])
 
     # --- Overall: delivery team
     r = 5 + len(inputs) + 1
-    put(ov, f"A{r}", "Delivery team", font=SECTION)
+    put(ov, f"A{r}", "Delivery team (build)", font=SECTION)
     r += 1
     header(ov, r, ["Role", f"Day rate ({ccy})", "Employees", "Days on delivery", "Allocation", "Mandays",
                    f"Cost ({ccy})", "Cited from"])
@@ -624,13 +920,41 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
     put(ov, f"G{r}", f"=SUM(G{first}:G{r - 1})", MONEY)
     total_row(ov, r, 8)
 
+    # --- Overall: run support (OPEX in mandays)
+    r += 2
+    put(ov, f"A{r}", "Run support (OPEX): IT support and maintenance after go-live", font=SECTION)
+    r += 1
+    header(ov, r, ["Role", f"Day rate ({ccy})", "Mandays per year", f"Cost per year ({ccy})", "Cited from"])
+    first = r + 1
+    for m in model.get("support") or []:
+        r += 1
+        ov.cell(row=r, column=1, value=m["role"])
+        put(ov, f"B{r}", f"=VLOOKUP(A{r},{rate_range},2,FALSE)", MONEY, GREEN)
+        put(ov, f"C{r}", m["mandays_per_year"], QTY, BLUE)
+        put(ov, f"D{r}", f"=C{r}*B{r}", MONEY)
+        ov.cell(row=r, column=5, value=m["cite"])
+    for _ in range(SPARE_ROWS):
+        r += 1
+        put(ov, f"B{r}", f'=IF(A{r}="","",VLOOKUP(A{r},{rate_range},2,FALSE))', MONEY, GREEN)
+        ov[f"C{r}"].font = BLUE
+        put(ov, f"D{r}", f'=IF(A{r}="","",C{r}*B{r})', MONEY)
+    add_table(ov, "tblSupport", "A", first - 1, "E", r)
+    r += 1
+    support_total = r
+    put(ov, f"A{r}", "Total")
+    put(ov, f"C{r}", f"=SUM(C{first}:C{r - 1})", QTY)
+    put(ov, f"D{r}", f"=SUM(D{first}:D{r - 1})", MONEY)
+    total_row(ov, r, 5)
+
     # --- Overall: cost summary
     r += 2
     put(ov, f"A{r}", "Cost summary", font=SECTION)
     r += 1
     header(ov, r, ["Item", f"Monthly ({ccy})", "Months in delivery", f"Delivery cost ({ccy})",
-                   "Months in run", f"Run cost ({ccy})", f"Total ({ccy})", "From"])
+                   "Run months per year", f"Run cost per year ({ccy})", f"Run cost over the horizon ({ccy})",
+                   f"Total ({ccy})", "From"])
     first = r + 1
+    run_rows: list[tuple[str, int]] = []  # (label, row) of every recurring cost, for the Multi-Year sheet
     for env, (name, env_total) in zip(model["environments"], env_totals):
         r += 1
         ov.cell(row=r, column=1, value=f"{name} environment")
@@ -640,23 +964,36 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
         else:
             put(ov, f"C{r}", env["delivery_months"], MONTHS, BLUE)
         put(ov, f"D{r}", f"=B{r}*C{r}", MONEY)
-        if env.get("run_months") is None:
-            put(ov, f"E{r}", "=RunMonths", MONTHS)
-        else:
-            put(ov, f"E{r}", env["run_months"], MONTHS, BLUE)
+        put(ov, f"E{r}", env.get("run_months_per_year", 12), MONTHS, BLUE)
         put(ov, f"F{r}", f"=B{r}*E{r}", MONEY)
-        put(ov, f"G{r}", f"=D{r}+F{r}", MONEY)
-        ov.cell(row=r, column=8, value=f"{name} sheet")
+        put(ov, f"G{r}", f"=F{r}*HorizonFactor", MONEY)
+        put(ov, f"H{r}", f"=D{r}+G{r}", MONEY)
+        ov.cell(row=r, column=9, value=f"{name} sheet")
+        run_rows.append((f"{name} environment (run)", r))
     r += 1
     ov.cell(row=r, column=1, value="Delivery team")
     put(ov, f"D{r}", f"=G{team_total}", MONEY, GREEN)
-    put(ov, f"G{r}", f"=D{r}+F{r}", MONEY)
-    ov.cell(row=r, column=8, value="Delivery team table above")
+    put(ov, f"H{r}", f"=D{r}+G{r}", MONEY)
+    ov.cell(row=r, column=9, value="Delivery team table above")
+    r += 1
+    ov.cell(row=r, column=1, value="Run support (OPEX)")
+    put(ov, f"F{r}", f"=D{support_total}", MONEY, GREEN)
+    put(ov, f"G{r}", f"=F{r}*HorizonFactor", MONEY)
+    put(ov, f"H{r}", f"=D{r}+G{r}", MONEY)
+    ov.cell(row=r, column=9, value="Run support table above")
+    run_rows.append(("Run support (OPEX)", r))
+    r += 1
+    ov.cell(row=r, column=1, value="Recurring run costs")
+    put(ov, f"F{r}", f"={q('Run Costs')}!$C${run_costs_total}", MONEY, GREEN)
+    put(ov, f"G{r}", f"=F{r}*HorizonFactor", MONEY)
+    put(ov, f"H{r}", f"=D{r}+G{r}", MONEY)
+    ov.cell(row=r, column=9, value="Run Costs sheet")
+    run_rows.append(("Recurring run costs", r))
     r += 1
     ov.cell(row=r, column=1, value="Other one-off costs")
     put(ov, f"D{r}", f"={q('Other Costs')}!$C${other_total}", MONEY, GREEN)
-    put(ov, f"G{r}", f"=D{r}+F{r}", MONEY)
-    ov.cell(row=r, column=8, value="Other Costs sheet")
+    put(ov, f"H{r}", f"=D{r}+G{r}", MONEY)
+    ov.cell(row=r, column=9, value="Other Costs sheet")
     claude_ref = None
     if close:
         claude_ref = "=" + q("Claude Usage") + "!$I$" + str(5 + len(claude_models(close)))
@@ -664,32 +1001,271 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
             r += 1
             ov.cell(row=r, column=1, value="Claude API usage (actual, API list prices)")
             put(ov, f"D{r}", claude_ref, MONEY, GREEN)
-            put(ov, f"G{r}", f"=D{r}+F{r}", MONEY)
-            ov.cell(row=r, column=8, value="Claude Usage sheet")
-    add_table(ov, "tblCostSummary", "A", first - 1, "H", r)
+            put(ov, f"H{r}", f"=D{r}+G{r}", MONEY)
+            ov.cell(row=r, column=9, value="Claude Usage sheet")
+    add_table(ov, "tblCostSummary", "A", first - 1, "I", r)
     r += 1
     sub = r
     put(ov, f"A{r}", "Subtotal")
-    for col in "DFG":
+    for col in "DFGH":
         put(ov, f"{col}{r}", f"=SUM({col}{first}:{col}{r - 1})", MONEY)
-    total_row(ov, r, 8)
+    total_row(ov, r, 9)
     r += 1
     ov.cell(row=r, column=1, value="Contingency")
-    for col in "DF":
-        put(ov, f"{col}{r}", f"={col}{sub}*Contingency", MONEY)
-    put(ov, f"G{r}", f"=D{r}+F{r}", MONEY)
-    r += 1
-    put(ov, f"A{r}", "Grand total")
     for col in "DFG":
+        put(ov, f"{col}{r}", f"={col}{sub}*Contingency", MONEY)
+    put(ov, f"H{r}", f"=D{r}+G{r}", MONEY)
+    r += 1
+    grand = r
+    put(ov, f"A{r}", "Grand total")
+    for col in "DFGH":
         put(ov, f"{col}{r}", f"={col}{sub}+{col}{r - 1}", MONEY)
-    total_row(ov, r, 8)
-    for col in "ADFG":
+    total_row(ov, r, 9)
+    for col in "ADFGH":
         ov[f"{col}{r}"].font = Font(bold=True, size=12)
     if close and not close["in_totals"]:
         r += 2
         ov.cell(row=r, column=1, value="Memo: Claude API usage at API list prices (not in the totals: Claude Code was on a subscription)")
         put(ov, f"D{r}", claude_ref, MONEY, GREEN)
-    widths(ov, [36, 16, 12, 18, 12, 18, 18, 44])
+    widths(ov, [40, 16, 14, 18, 14, 18, 20, 18, 30])
+
+    # --- Multi-Year: the build, then years 1..5 (zero past the horizon)
+    my = wb.create_sheet("Multi-Year")
+    put(my, "A1", "Multi-year view", font=TITLE)
+    put(my, "A2", f"In {ccy}. Build is the delivery; each year after go-live carries the run costs, raised by the yearly increase, "
+                  "and the revenue given for it. Years past the horizon (Overall input) show zero. Contingency applies to every cost.")
+    header(my, 4, ["Category", "Item", "Build", *YEARS, "Total"])
+    r = 4
+    ovq = q("Overall")
+
+    def year_cells(row: int, formula) -> None:
+        for k, col in enumerate(YEAR_COLS, 1):
+            put(my, f"{col}{row}", f"=IF({k}<=HorizonYears,{formula(k)},0)", MONEY)
+        put(my, f"I{row}", f"=SUM(C{row}:H{row})", MONEY)
+
+    for vr in range(revenue_first, revenue_last + 1):
+        r += 1
+        my.cell(row=r, column=1, value="Revenue")
+        put(my, f"B{r}", f'=IF({q("Revenue")}!$B${vr}="","(spare revenue row)",{q("Revenue")}!$B${vr})', None, GREEN)
+        put(my, f"C{r}", 0, MONEY)
+        year_cells(r, lambda k, vr=vr: f"{q('Revenue')}!{YEAR_COLS[k - 1]}${vr}")
+    r += 1
+    my.cell(row=r, column=1, value="Cost")
+    my.cell(row=r, column=2, value="Build: delivery team, environments during delivery, one-off costs"
+                                   + (", Claude usage" if close and close["in_totals"] else ""))
+    put(my, f"C{r}", f"={ovq}!$D${sub}", MONEY, GREEN)
+    for col in YEAR_COLS:
+        put(my, f"{col}{r}", 0, MONEY)
+    put(my, f"I{r}", f"=SUM(C{r}:H{r})", MONEY)
+    for label, orow in run_rows:
+        r += 1
+        my.cell(row=r, column=1, value="Cost")
+        my.cell(row=r, column=2, value=label)
+        put(my, f"C{r}", 0, MONEY)
+        year_cells(r, lambda k, orow=orow: f"{ovq}!$F${orow}*(1+CostEscalation)^{k - 1}")
+    r += 1
+    my.cell(row=r, column=1, value="Contingency")
+    my.cell(row=r, column=2, value="Contingency on every cost")
+    for col in "CDEFGH":
+        put(my, f"{col}{r}", f'=SUMIF($A$5:$A${r - 1},"Cost",{col}5:{col}{r - 1})*Contingency', MONEY)
+    put(my, f"I{r}", f"=SUM(C{r}:H{r})", MONEY)
+    last = r
+    add_table(my, "tblMultiYear", "A", 4, "I", last)
+    labels = [("Total revenue", "Revenue"), ("Total costs", None), ("Net", None), ("Cumulative net", None)]
+    rows_at = {}
+    for label, _ in labels:
+        r += 1
+        rows_at[label] = r
+        put(my, f"A{r}", label)
+    for col in "CDEFGHI":
+        rng = f"$A$5:$A${last}"
+        put(my, f"{col}{rows_at['Total revenue']}", f'=SUMIF({rng},"Revenue",{col}5:{col}{last})', MONEY)
+        put(my, f"{col}{rows_at['Total costs']}",
+            f'=SUMIF({rng},"Cost",{col}5:{col}{last})+SUMIF({rng},"Contingency",{col}5:{col}{last})', MONEY)
+        put(my, f"{col}{rows_at['Net']}", f"={col}{rows_at['Total revenue']}-{col}{rows_at['Total costs']}", MONEY)
+    cum = rows_at["Cumulative net"]
+    put(my, f"C{cum}", f"=C{rows_at['Net']}", MONEY)
+    for prev, col in zip("CDEFG", "DEFGH"):
+        put(my, f"{col}{cum}", f"={prev}{cum}+{col}{rows_at['Net']}", MONEY)
+    put(my, f"I{cum}", f"=H{cum}", MONEY)
+    total_row(my, rows_at["Total revenue"], 9)
+    for label in ("Total costs", "Net", "Cumulative net"):
+        my[f"A{rows_at[label]}"].font = BOLD
+    r += 2
+    put(my, f"A{r}", "Payback")
+    periods = ["Build", *YEARS]
+    formula = '"beyond the horizon"'
+    for col, period in reversed(list(zip("CDEFGH", periods))):
+        formula = f'IF({col}{cum}>=0,"{period}",{formula})'
+    put(my, f"B{r}", "=" + formula)
+    r += 1
+    put(my, f"A{r}", "Return on cost (net / costs)")
+    put(my, f"B{r}", f"=IF(I{rows_at['Total costs']}=0,\"\",I{rows_at['Net']}/I{rows_at['Total costs']})", "0.0%")
+    widths(my, [14, 58, 16, 16, 16, 16, 16, 16, 18])
+    my.freeze_panes = "C5"
+
+    # --- Epics: deliverables, forecast and actual per epic
+    ep = wb.create_sheet("Epics")
+    put(ep, "A1", "Epics: deliverables, forecast and actual", font=TITLE)
+    put(ep, "A2", f"In {ccy}. Forecast: each epic takes a share of the build in proportion to its planned working days (that "
+                  "share of the delivery team and of the environments during delivery), plus the one-off costs tagged to it "
+                  "and its Claude API budget; dates run the epics one after another from the delivery start date. Actual: "
+                  "enter or keep the actual start and end dates; actual working days, the Claude API actual from the ledger, "
+                  "and team and infra scaled by actual / planned days (same team and rates) unless you enter the timesheet "
+                  "team cost. Blue cells are inputs; add an epic in a spare row.")
+    header(ep, 4, ["Epic", "Name", "Deliverables", "Planned days", "Planned weeks", "Planned start", "Planned end",
+                   "Share of build", "Team mandays", f"Team cost ({ccy})", f"Infra cost ({ccy})", f"Other costs ({ccy})",
+                   f"Claude API budget ({ccy})", f"Forecast total ({ccy})", "Actual start", "Actual end", "Actual days",
+                   "Days variance", "Days variance %", f"Claude API actual ({ccy})", f"Actual team cost, timesheets ({ccy})",
+                   f"Actual total ({ccy})", f"Cost variance ({ccy})", "Cited from"])
+    epics = model.get("epics") or []
+    first_e, last_e = 5, 4 + len(epics) + SPARE_ROWS
+    days_rng = f"$D${first_e}:$D${last_e}"
+    env_delivery = "+".join(f"{ovq}!$D${row}" for label, row in run_rows if label.endswith("environment (run)")) or "0"
+    oc = q("Other Costs")
+    timeline = {t["name"]: t for t in (close or {}).get("timeline", []) if t.get("category") == "epic"}
+    n_usage = len(close["usage"]) if close else 0
+    detail = q("Claude Usage Detail")
+    DATE = "yyyy-mm-dd"
+    for i in range(len(epics) + SPARE_ROWS):
+        r = first_e + i
+        e_ = epics[i] if i < len(epics) else None
+        if e_:
+            put(ep, f"A{r}", e_["number"], "0", BLUE)
+            ep.cell(row=r, column=2, value=e_["epic"])
+            ep.cell(row=r, column=3, value="\n".join(e_.get("deliverables") or [])).alignment = WRAP
+            put(ep, f"D{r}", e_["days"], QTY, BLUE)
+            if e_.get("api_budget") is not None:
+                put(ep, f"M{r}", e_["api_budget"], MONEY, BLUE)
+            t = timeline.get(f"epic-{e_['number']}", {})
+            a_start = e_.get("actual_start") or t.get("started")
+            a_end = e_.get("actual_end") or (t.get("completed") if t.get("status", "done") == "done" else None)
+            if a_start:
+                put(ep, f"O{r}", iso_datetime(a_start), DATE, BLUE)
+            if a_end:
+                put(ep, f"P{r}", iso_datetime(a_end), DATE, BLUE)
+            if e_.get("actual_team_cost") is not None:
+                put(ep, f"U{r}", e_["actual_team_cost"], MONEY, BLUE)
+            ep.cell(row=r, column=24, value=e_["cite"]).alignment = WRAP
+        for col in "ABCDMOPU":
+            if ep[f"{col}{r}"].value is None:
+                ep[f"{col}{r}"].font = BLUE
+                if col in "OP":
+                    ep[f"{col}{r}"].number_format = DATE
+        g = f'D{r}=""'  # a spare row stays blank until it has days
+        put(ep, f"E{r}", f'=IF({g},"",D{r}/5)', "0.0")
+        start = "ProjectStart" if i == 0 else f"WORKDAY(G{r - 1},1)"
+        put(ep, f"F{r}", f'=IF(OR({g},ProjectStart=""),"",{start})', DATE)
+        put(ep, f"G{r}", f'=IF(F{r}="","",WORKDAY(F{r},D{r}-1))', DATE)
+        put(ep, f"H{r}", f'=IF({g},"",D{r}/SUM({days_rng}))', "0.0%")
+        put(ep, f"I{r}", f'=IF({g},"",H{r}*{ovq}!$F${team_total})', QTY)
+        put(ep, f"J{r}", f'=IF({g},"",H{r}*{ovq}!$G${team_total})', MONEY)
+        put(ep, f"K{r}", f'=IF({g},"",H{r}*({env_delivery}))', MONEY)
+        put(ep, f"L{r}", f'=IF(A{r}="","",SUMIFS({oc}!$C$5:$C${other_total - 1},{oc}!$F$5:$F${other_total - 1},A{r}))', MONEY)
+        put(ep, f"N{r}", f'=IF({g},"",J{r}+K{r}+L{r}+N(M{r}))', MONEY)
+        done = f'OR({g},O{r}="",P{r}="")'  # actuals only once both actual dates are in
+        put(ep, f"Q{r}", f'=IF({done},"",NETWORKDAYS(O{r},P{r}))', QTY)
+        put(ep, f"R{r}", f'=IF(Q{r}="","",Q{r}-D{r})', '+#,##0;-#,##0;0')
+        put(ep, f"S{r}", f'=IF(Q{r}="","",Q{r}/D{r}-1)', '+0.0%;-0.0%;0.0%')
+        if close:
+            put(ep, f"T{r}", f'=IF(A{r}="","",SUMIFS({detail}!$P$5:$P${4 + max(n_usage, 1)},'
+                             f'{detail}!$C$5:$C${4 + max(n_usage, 1)},A{r}&".*"))', MONEY)
+        put(ep, f"V{r}", f'=IF(Q{r}="","",IF(U{r}="",J{r}*Q{r}/D{r},U{r})+K{r}*Q{r}/D{r}+L{r}+N(T{r}))', MONEY)
+        put(ep, f"W{r}", f'=IF(V{r}="","",V{r}-N{r})', '+#,##0.00;-#,##0.00;0.00')
+    add_table(ep, "tblEpics", "A", 4, "X", last_e)
+    r = last_e + 1
+    epic_total = r
+    put(ep, f"A{r}", "Total")
+    for col in "DIJKLMNQRTUVW":
+        put(ep, f"{col}{r}", f"=SUM({col}{first_e}:{col}{last_e})", QTY if col in "DIQR" else MONEY)
+    # variance over the epics that have actuals only
+    put(ep, f"S{r}", f'=IF(Q{r}=0,"",Q{r}/SUMIFS(D{first_e}:D{last_e},Q{first_e}:Q{last_e},">0")-1)', '+0.0%;-0.0%;0.0%')
+    total_row(ep, r, 24)
+    r += 2
+    put(ep, f"A{r}", f'=IF(D{epic_total}=DeliveryDays,"The planned epics add up to the days of delivery.",'
+                     f'"The planned epics add up to "&D{epic_total}&" working days; the days of delivery input is "&DeliveryDays'
+                     f'&". Costs are shared by planned epic days either way.")')
+    widths(ep, [6, 26, 40, 9, 9, 12, 12, 9, 11, 14, 13, 13, 13, 15, 12, 12, 9, 9, 9, 13, 15, 15, 14, 40])
+    ep.freeze_panes = "C5"
+
+    # --- Sprints: fixed timeboxes of SprintDays working days from the delivery start, forecast and actual
+    sp = wb.create_sheet("Sprints")
+    put(sp, "A1", "Sprints: forecast and actual", font=TITLE)
+    put(sp, "A2", f"In {ccy}. Every sprint is a timebox of the Overall input 'Working days per sprint' from the delivery start "
+                  "date. Forecast: the sprint's planned working days (the days of delivery, sprint by sprint) at the delivery "
+                  "team's and the environments' daily cost, plus any Claude API budget. Actual, up to the last actual activity "
+                  "(the latest completed story or day of Claude usage): the days worked in the sprint, the stories completed, "
+                  "the Claude API cost on its days, and the team at the days worked unless timesheets are entered. Sprints "
+                  "past the plan appear when work ran over. Blue cells are inputs.")
+    tl_rows = len((close or {}).get("timeline") or [])
+    dy_rows = len((close or {}).get("daily") or [])
+    tlq, dyq = q("Project Timeline"), q("Claude Usage Daily")
+    last_parts = []
+    if tl_rows:
+        last_parts.append(f'MAXIFS({tlq}!$F$5:$F${4 + tl_rows},{tlq}!$A$5:$A${4 + tl_rows},"story")')
+    if dy_rows:
+        last_parts.append(f"MAX({dyq}!$A$5:$A${4 + dy_rows})")
+    put(sp, "A3", "Last actual activity")
+    if last_parts:
+        put(sp, "C3", f'=IF(MAX({",".join(last_parts)})=0,"",MAX({",".join(last_parts)}))', "yyyy-mm-dd")
+    wb.defined_names["LastActual"] = DefinedName("LastActual", attr_text="Sprints!$C$3")
+    header(sp, 4, ["Sprint", "Start", "End", "Planned days", "Planned stories", f"Team cost ({ccy})", f"Infra cost ({ccy})",
+                   f"Claude API budget ({ccy})", f"Forecast total ({ccy})", "Days worked", "Stories done",
+                   "Stories done (list)", f"Claude API actual ({ccy})", f"Actual team cost, timesheets ({ccy})",
+                   f"Actual total ({ccy})", f"Cost variance ({ccy})"])
+    planned = {x["number"]: x for x in model.get("sprints") or []}
+    sprint_figs = {x["number"]: x for x in (sprint_figures or [])}
+    n_sprints = max(-(-int(a["delivery_days"]) // int(a["sprint_days"])), len(sprint_figs)) + SPARE_ROWS
+    team_daily = f"{ovq}!$G${team_total}/DeliveryDays"
+    infra_daily = f"({env_delivery})/DeliveryDays"
+    first_s = 5
+    for k in range(1, n_sprints + 1):
+        r = first_s + k - 1
+        put(sp, f"A{r}", k, "0")
+        planned_days = f"MIN(SprintDays,MAX(0,DeliveryDays-({k}-1)*SprintDays))"
+        timebox = f"WORKDAY(ProjectStart,({k}-1)*SprintDays)"
+        # a sprint exists while it has planned days, or while actual work reaches into it
+        exists = f'OR({planned_days}>0,AND(ProjectStart<>"",LastActual<>"",{timebox}<=N(LastActual)))'
+        put(sp, f"D{r}", f'=IF({exists},{planned_days},"")', "0")
+        put(sp, f"B{r}", f'=IF(OR(D{r}="",ProjectStart=""),"",{timebox})', "yyyy-mm-dd")
+        put(sp, f"C{r}", f'=IF(B{r}="","",WORKDAY(B{r},SprintDays-1))', "yyyy-mm-dd")
+        plan = planned.get(k, {})
+        if plan.get("stories"):
+            sp.cell(row=r, column=5, value="\n".join(plan["stories"])).alignment = WRAP
+        sp[f"E{r}"].font = BLUE
+        put(sp, f"F{r}", f'=IF(D{r}="","",D{r}*{team_daily})', MONEY)
+        put(sp, f"G{r}", f'=IF(D{r}="","",D{r}*{infra_daily})', MONEY)
+        if plan.get("api_budget") is not None:
+            put(sp, f"H{r}", plan["api_budget"], MONEY, BLUE)
+        else:
+            sp[f"H{r}"].font = BLUE
+        put(sp, f"I{r}", f'=IF(D{r}="","",F{r}+G{r}+N(H{r}))', MONEY)
+        worked = f'OR(B{r}="",LastActual="",B{r}>N(LastActual))'  # no actuals before work reached the sprint
+        put(sp, f"J{r}", f'=IF({worked},"",NETWORKDAYS(B{r},MIN(C{r},LastActual)))', "0")
+        if tl_rows:
+            put(sp, f"K{r}", f'=IF(J{r}="","",COUNTIFS({tlq}!$A$5:$A${4 + tl_rows},"story",'
+                             f'{tlq}!$F$5:$F${4 + tl_rows},">="&B{r},{tlq}!$F$5:$F${4 + tl_rows},"<="&C{r}))', "0")
+        done = sprint_figs.get(k, {}).get("stories_done_list")
+        if done:
+            sp.cell(row=r, column=12, value="\n".join(done)).alignment = WRAP
+        if dy_rows:
+            put(sp, f"M{r}", f'=IF(J{r}="","",SUMIFS({dyq}!$O$5:$O${4 + dy_rows},{dyq}!$A$5:$A${4 + dy_rows},">="&B{r},'
+                             f'{dyq}!$A$5:$A${4 + dy_rows},"<="&C{r}))', MONEY)
+        if plan.get("actual_team_cost") is not None:
+            put(sp, f"N{r}", plan["actual_team_cost"], MONEY, BLUE)
+        else:
+            sp[f"N{r}"].font = BLUE
+        put(sp, f"O{r}", f'=IF(J{r}="","",IF(N{r}="",J{r}*{team_daily},N{r})+J{r}*{infra_daily}+N(M{r}))', MONEY)
+        put(sp, f"P{r}", f'=IF(O{r}="","",O{r}-N(I{r}))', '+#,##0.00;-#,##0.00;0.00')
+    last_s = first_s + n_sprints - 1
+    add_table(sp, "tblSprints", "A", 4, "P", last_s)
+    r = last_s + 1
+    put(sp, f"A{r}", "Total")
+    for col in "DFGHIJKMNOP":
+        put(sp, f"{col}{r}", f"=SUM({col}{first_s}:{col}{last_s})", "0" if col in "DJK" else MONEY)
+    total_row(sp, r, 16)
+    widths(sp, [8, 12, 12, 10, 34, 14, 13, 13, 15, 10, 10, 34, 14, 15, 15, 14])
+    sp.freeze_panes = "B5"
 
     # --- Sources & Gaps
     sg = wb.create_sheet("Sources & Gaps")
@@ -706,8 +1282,12 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
                           "tokens. Claude Code on a subscription is billed per seat: this is the API-equivalent cost."))
         if close["unpriced"]:
             lines.append(("", "Claude models with no price on the page (their tokens are not costed): " + ", ".join(close["unpriced"])))
+    lines.append(("", f"Horizon: {a['horizon_years']} years of run after go-live, run costs rising {a['cost_escalation_pct']}% a year."))
     lines += [("", ""), ("Gaps: not priced and not in any total", "")]
-    lines += [("", g) for g in model.get("gaps") or []] or [("", "None recorded.")]
+    gaps = list(model.get("gaps") or [])
+    if not model.get("revenue"):
+        gaps.append("Revenue: none given, so the Multi-Year sheet shows costs only.")
+    lines += [("", g) for g in gaps] or [("", "None recorded.")]
     assumed = []
     for env in model["environments"]:
         for item in env["items"]:
@@ -718,10 +1298,12 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
         kind, _, ref = split_cite(m["cite"])
         if kind != "file":
             assumed.append(f"Team / {m['role']}: {kind}: {ref}")
-    for o in model.get("other_costs") or []:
-        kind, _, ref = split_cite(o["cite"])
-        if kind != "file":
-            assumed.append(f"Other / {o['item']}: {kind}: {ref}")
+    for label, entries, key in (("Other", model.get("other_costs"), "item"), ("Run cost", model.get("run_costs"), "item"),
+                                ("Support", model.get("support"), "role"), ("Revenue", model.get("revenue"), "stream")):
+        for o in entries or []:
+            kind, _, ref = split_cite(o["cite"])
+            if kind != "file":
+                assumed.append(f"{label} / {o[key]}: {kind}: {ref}")
     lines += [("", ""), ("Assumptions and owner statements (not from the BMad artifacts)", "")]
     lines += [("", t) for t in assumed] or [("", "None.")]
     lines += [("", ""), (f"Stamp: built {stamp['built']}; sha256 of each cited file", "")]
@@ -737,7 +1319,11 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
         write_close_out(wb, close, ccy, dict(put=put, header=header, widths=widths, total_row=total_row,
                                              add_table=add_table, q=q, TITLE=TITLE, SECTION=SECTION, MONEY=MONEY,
                                              QTY=QTY, BLUE=BLUE, GREEN=GREEN, BOLD=BOLD))
-    wb.move_sheet("Sources & Gaps", offset=len(wb.sheetnames) - 1 - wb.sheetnames.index("Sources & Gaps"))
+    order = ["Overall", "Multi-Year", "Epics", "Sprints", "Revenue", "Rate Card", "Other Costs", "Run Costs",
+             *[e["name"] for e in model["environments"]],
+             "Claude Prices", "Claude Usage", "Claude Usage Detail", "Claude Usage Daily", "Project Timeline", "Sources & Gaps"]
+    for i, name in enumerate(n for n in order if n in wb.sheetnames):
+        wb.move_sheet(name, offset=i - wb.sheetnames.index(name))
     wb.calculation.fullCalcOnLoad = True
     out.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out)
@@ -832,6 +1418,30 @@ def write_close_out(wb, close: dict, ccy: str, k: dict) -> None:
     k["total_row"](us, r, 9)
     widths(us, [28, 10, 14, 16, 16, 16, 14, 14, 14])
 
+    # Claude Usage Daily: one row per day x work item x model, for day-to-day dashboards
+    if close["daily"]:
+        dy = wb.create_sheet("Claude Usage Daily")
+        put(dy, "A1", "Claude API usage by day", font=k["TITLE"])
+        put(dy, "A2", "From the token ledger (claude_usage_daily.csv, refreshed after every turn). Cost = tokens x the Claude "
+                      "Prices sheet; models with no price cost 0.")
+        header(dy, 4, ["Day", "Kind", "Work item", "Story no", "Title", "Model", "Pricing model", "Calls", "Input tokens",
+                       "Cache write 5m tokens", "Cache write 1h tokens", "Cache read tokens", "Output tokens",
+                       "Cost (USD)", f"Cost ({ccy})"])
+        r = 4
+        for u in close["daily"]:
+            r += 1
+            values = [iso_datetime(u["day"]), u["kind"], u["work_item"], u.get("story_no", ""), u.get("title", ""),
+                      u["model"], pricing_id(u["model"]), int(u["calls"])]
+            values += [int(u.get(f"{key}_tokens") or 0) for key in kinds]
+            for c, v in enumerate(values, 1):
+                dy.cell(row=r, column=c, value=v).number_format = "yyyy-mm-dd" if c == 1 else TOKENS if c >= 8 else "General"
+            vl = "+".join(f"{col}{r}*VLOOKUP($G{r},{price_range},{n},FALSE)" for col, n in zip("IJKLM", range(3, 8)))
+            put(dy, f"N{r}", f"=IFERROR(({vl})/1000000,0)", MONEY)
+            put(dy, f"O{r}", f"=N{r}*ClaudeFxRate", MONEY)
+        add_table(dy, "tblClaudeUsageDaily", "A", 4, "O", r)
+        widths(dy, [12, 10, 30, 9, 30, 26, 22, 9, 14, 14, 14, 16, 14, 14, 14])
+        dy.freeze_panes = "A5"
+
     # Project Timeline
     if close["timeline"]:
         ts = wb.create_sheet("Project Timeline")
@@ -858,22 +1468,65 @@ def write_close_out(wb, close: dict, ccy: str, k: dict) -> None:
 
 
 def write_facts(model: dict, figures: dict, out: Path) -> None:
-    """The cost lines as values, one row each, for dashboards that read files (Power BI, Excel Online)."""
-    ccy, name = model["currency"], model["name"]
-    rows = [["estimate", "currency", "category", "item", "monthly", "delivery", "run", "total"]]
-    for e in figures["environments"]:
-        rows.append([name, ccy, "environment", e["name"], e["monthly"], e["delivery"], e["run"], round(e["delivery"] + e["run"], 2)])
-    rows.append([name, ccy, "team", "Delivery team", "", figures["team"]["cost"], 0, figures["team"]["cost"]])
-    rows.append([name, ccy, "other", "Other one-off costs", "", figures["other_costs"], 0, figures["other_costs"]])
+    """Every revenue and cost line per period as a plain value, one row each, for dashboards (Power BI, Excel Online).
+
+    Long format: estimate, currency, period (Build, Year 1..), year (0 for the build), category, item, amount.
+    """
+    a = settings(model)
+    ccy, name, h, e, cont = model["currency"], model["name"], a["horizon_years"], a["escalation"], a["contingency"]
+    rows = [["estimate", "currency", "period", "year", "category", "item", "amount"]]
+
+    def add(year: int, category: str, item: str, amount: float) -> None:
+        rows.append([name, ccy, "Build" if year == 0 else f"Year {year}", year, category, item, round(amount, 2)])
+
+    build = [("delivery team", "Delivery team", figures["team"]["cost"]), ("one-off", "Other one-off costs", figures["other_costs"])]
+    build += [("environment", f"{x['name']} environment (during delivery)", x["delivery"]) for x in figures["environments"]]
     claude = figures.get("claude")
-    if claude:
-        rows.append([name, ccy, "claude" if claude["in_totals"] else "claude (memo)", "Claude API usage", "",
-                     claude["cost"], 0, claude["cost"]])
-    rows.append([name, ccy, "contingency", "Contingency", "", "", "", figures["contingency"]])
-    g = figures["grand_total"]
-    rows.append([name, ccy, "grand total", "Grand total", "", g["delivery"], g["run"], g["total"]])
+    if claude and claude["in_totals"]:
+        build.append(("claude", "Claude API usage", claude["cost"]))
+    for category, item, amount in build:
+        add(0, category, item, amount)
+    add(0, "contingency", "Contingency", sum(x[2] for x in build) * cont)
+    if claude and not claude["in_totals"]:
+        add(0, "claude (memo)", "Claude API usage at API list prices (not in the totals)", claude["cost"])
+    for k in range(1, h + 1):
+        factor = (1 + e) ** (k - 1)
+        for stream in model.get("revenue") or []:
+            add(k, "revenue", stream["stream"], stream["amounts"][k - 1] if k <= len(stream["amounts"]) else 0)
+        run = [("environment", f"{x['name']} environment (run)", x["run_per_year"] * factor) for x in figures["environments"]]
+        run += [("support", "Run support (OPEX)", figures["support"]["cost_per_year"] * factor),
+                ("run costs", "Recurring run costs", figures["run_costs_per_year"] * factor)]
+        for category, item, amount in run:
+            add(k, category, item, amount)
+        add(k, "contingency", "Contingency", sum(x[2] for x in run) * cont)
     with out.open("w", newline="", encoding="utf-8") as fh:
         csv.writer(fh).writerows(rows)
+
+
+def write_epics(model: dict, figures: dict, out: Path) -> None:
+    """One row per epic: deliverables, duration and cost, as plain values for dashboards."""
+    fields = ["number", "epic", "days", "weeks", "start", "end", "share", "mandays", "team_cost", "infra_cost",
+              "other_costs", "api_budget", "forecast_total", "actual_start", "actual_end", "actual_days", "days_variance",
+              "days_variance_pct", "api_actual", "actual_team_cost", "actual_total", "cost_variance"]
+    deliverables = {x["number"]: "; ".join(x.get("deliverables") or []) for x in model.get("epics") or []}
+    with out.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["estimate", "currency", *fields[:2], "deliverables", *fields[2:]])
+        for x in figures["epics"]:
+            w.writerow([model["name"], model["currency"], x["number"], x["epic"], deliverables.get(x["number"], ""),
+                        *[("" if x[f] is None else x[f]) for f in fields[2:]]])
+
+
+def write_sprints(model: dict, figures: dict, out: Path) -> None:
+    """One row per sprint: dates, forecast and actual, as plain values for dashboards."""
+    fields = ["number", "start", "end", "days", "team_cost", "infra_cost", "api_budget", "forecast_total", "days_worked",
+              "stories_done", "api_actual", "actual_team_cost", "actual_total", "cost_variance"]
+    with out.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["estimate", "currency", *fields, "planned_stories", "stories_done_list"])
+        for x in figures["sprints"]:
+            w.writerow([model["name"], model["currency"], *[("" if x[f] is None else x[f]) for f in fields],
+                        "; ".join(x["planned_stories"]), "; ".join(x["stories_done_list"])])
 
 
 # --------------------------------------------------------------------------- main
@@ -932,9 +1585,12 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     stamp = make_stamp(root, model, card_path, close["files"] if close else [])
     try:
-        sheets = write_workbook(model, card, stamp, out, close)
+        sheets = write_workbook(model, card, stamp, out, close, figures.get("sprints"))
         facts = out.with_name(out.stem + ".facts.csv")
         write_facts(model, figures, facts)
+        if figures["epics"]:
+            write_epics(model, figures, out.with_name(out.stem + ".epics.csv"))
+        write_sprints(model, figures, out.with_name(out.stem + ".sprints.csv"))
     except PermissionError:
         print(json.dumps({"status": "error", "message": f"cannot write {out}: is it open in Excel?"}))
         return 2

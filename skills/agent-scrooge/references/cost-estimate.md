@@ -10,7 +10,16 @@ type: prompt
 
 The outcome is a workbook {user_name} can put in front of whoever holds the budget: `<name>.xlsx` in the cost estimates folder (org config `cost_estimates_folder`, default `{project-root}/docs/cost_estimates/`), built by `scripts/build_estimate.py` from a model, `<name>.estimate.json`, that sits beside it. Every line cites where it came from, every price says which meter and when, and everything not yet decided is listed as a gap instead of guessed.
 
-The workbook has an **Overall** sheet (inputs: days of delivery, working days per month, hours per month, months of run, contingency, exchange rate; the delivery team as role × employees × days × allocation = mandays, priced from the rate card; and the cost summary gathering every sheet into delivery, run and grand totals), one sheet per **environment**, the **Rate Card**, **Other Costs** and **Sources & Gaps**. Every total is a formula, so {user_name} can change a blue cell in Excel and the workbook recalculates. `uv run scripts/build_estimate.py --help` documents the model format in full.
+The workbook covers the build and then 3 to 5 years of running the solution. It has:
+
+- **Overall:** the inputs (days of delivery, working days per month, hours per month, years of run after go-live, the yearly increase in run costs, contingency, exchange rate); the delivery team as role × employees × days × allocation = mandays; the run support team (OPEX) as role × mandays per year, both priced from the rate card; and the cost summary of delivery, run per year, run over the horizon and grand totals.
+- **Epics:** forecast against actual for each epic. The forecast is its deliverables, planned working days, weeks and dates, and its share of the build (team mandays and cost, infra), plus its one-off costs and Claude API budget. The actual is its dates, working days and the variance in days and %, its Claude API actual, its actual cost and the cost variance.
+- **Sprints:** forecast against actual for each sprint. Sprints are fixed timeboxes of the sprint length from the delivery start date.
+- **Multi-Year:** the build, then Year 1 to Year 5. It shows revenue, every cost, contingency, net and cumulative net, the payback year and the return on cost. Years past the horizon show zero, so changing the horizon in Excel recalculates it.
+- **Revenue:** yearly revenue per stream.
+- **Run Costs:** recurring yearly costs such as support contracts and licences.
+- One sheet per **environment**, with a monthly, daily and annual cost per line.
+- **Rate Card**, **Other Costs** (one-off) and **Sources & Gaps**. Every total is a formula, so {user_name} can change a blue cell in Excel and the workbook recalculates. `uv run scripts/build_estimate.py --help` documents the model format in full.
 
 ## New or update
 
@@ -45,15 +54,68 @@ The team is priced from the rate card (capability RT, `rate-card.json` in the sa
 
 Propose the team from the work: the roles the stories call for, the number of employees in each, and the days of delivery. Base your proposal on the story count, the stories still open in the sprint status, and a pace {user_name} confirms. Show the reasoning in one or two lines and let {user_name} set the numbers. `days: null` means the whole delivery (the Overall input), a number means a shorter stint (a security specialist for ten days), and `allocation` covers part-time roles. Cite the epics file for roles the stories imply and `owner:` for the numbers {user_name} set.
 
-Ask once about **other costs** (licences, penetration test, training, support contracts). Include only the ones {user_name} gives a figure for.
+Ask once about **other costs**: one-off costs of the build (licences, penetration test, training). Include only the ones {user_name} gives a figure for.
+
+## Epics
+
+When the epics and stories exist (`bmad-create-epics-and-stories`), add one `epics` entry per epic:
+- its number, as in the story numbers (1 for stories 1.1, 1.2);
+- its name;
+- its deliverables: the stories, or the outputs they produce;
+- its working days;
+- an optional Claude API budget;
+- a citation to the epics file.
+
+Propose the days from the stories' size and the team, and let {user_name} set them. If the epic days don't add up to the days of delivery, say so and ask which is right; the sheet shares the build by epic days either way. A delivery start date (`assumptions.start_date`) dates the epics, one after another in working days. Tag a one-off cost to the epic it belongs to with `epic` on the Other Costs line.
+
+- **What each epic carries:** its share of the delivery team and of the environments during delivery (share = its days ÷ all epic days), the one-off costs tagged to it, and its Claude API cost.
+- **The Claude API cost:** the budget {user_name} gives, until the ledger has actual usage for the epic's stories. Then it's the actual, which needs the close-out's Claude sheets. Never invent an API budget; leave it out if nobody sets one.
+- **Forecast vs actual:** the forecast total is team + infra + one-off + the API budget. Once an epic has both an actual start and end date, the actual side fills in:
+  - the actual working days (Excel's NETWORKDAYS, so like for like with the planned working days), and the variance in days and %;
+  - the Claude API actual;
+  - team and infra scaled by actual ÷ planned days, assuming the same team and rates, unless {user_name} gives the timesheet team cost (`actual_team_cost`);
+  - the cost variance (actual − forecast).
+
+  The actual dates come from the timeline at close-out, or from `actual_start` and `actual_end` when {user_name} gives them mid-project. Say plainly when the actual cost rests on the same-team assumption rather than timesheets.
+- **In Excel:** every epic figure is a formula, and there are spare rows, so {user_name} can change an epic's days or add an epic and the costs follow.
+
+## Sprints
+
+Ask the sprint length in working days (default 10, two weeks); the delivery start date is the one the epics use. The sheet then lays out the sprints by itself, one timebox after another, until the days of delivery run out. If {user_name} has a sprint plan, record the stories planned for each sprint in `sprints` (number, stories), with an optional Claude API budget per sprint.
+
+- **Forecast:** the sprint's planned working days at the delivery team's daily cost (team cost ÷ days of delivery) and the environments' daily cost, plus any budget. The last sprint may have fewer planned days than its timebox.
+- **Actual:** this runs up to the last actual activity (the latest completed story, or the latest day of Claude usage). It shows:
+  - the days worked in the sprint (NETWORKDAYS);
+  - the stories completed within the sprint's dates (from the timeline);
+  - the Claude API cost on its days (from the daily ledger);
+  - the team at the days worked, unless {user_name} gives the sprint's timesheet cost (`actual_team_cost`);
+  - the cost variance.
+- **Work that ran past the plan** shows as extra sprints with no planned days. Their whole cost is the overrun.
+- BMad's sprint status records stories, not sprint numbers, so stories are counted by the dates they were completed. Say so when {user_name} compares against their own sprint board.
+
+## Running it: the horizon and OPEX
+
+Ask how many years after go-live the estimate should cover: 3, 4 or 5, default 5. Ask too whether run costs should rise each year (for example 3% for price increases); the default is 0.
+
+- **Run support (OPEX):** the people who keep the solution running after go-live, such as bug fixes, patching, upgrades, on-call and IT support. Record them as role × mandays per year in `support`, priced from the rate card. Propose the roles from the architecture (a cluster needs patching, a database upgrades) and from how the build went. {user_name} sets the mandays.
+- **Recurring run costs:** yearly costs outside the environments and the support team, such as a support contract, licences or SaaS subscriptions. Record them in `run_costs`, only with figures {user_name} gives.
+- An environment that doesn't run all year after go-live (a Test environment used six months a year) gets `run_months_per_year`.
+
+## Revenue
+
+Ask what the solution earns, year by year after go-live, and on what basis (fees, subscriptions, savings the business will count as revenue). Revenue comes from {user_name} or from a business case in the artifacts, cited like any other line. Never estimate it yourself, and never borrow a growth rate. Record each stream in `revenue` with one amount per year of the horizon and its basis in words. If there's no revenue, or none is known yet, leave `revenue` out. The workbook then shows costs only and lists the missing revenue as a gap.
 
 ## Build and report
 
 Write the model to `<cost estimates folder>/<name>.estimate.json`, run `uv run scripts/build_estimate.py {project-root} <name>.estimate.json --check`, fix what it flags (a cite that doesn't resolve, a role not on the rate card, an unpriced line), then build without `--check`.
 
-Report from the script's `figures`, figure first: the grand total, split into delivery and run, with the contingency. Then each environment's monthly cost, the team's mandays and cost, the gaps, and the workbook's path. Tell {user_name} that the blue cells are theirs to change in Excel, and that the model is the source: a rebuild replaces the workbook. For a dashboard, every data range is a named Excel table and `<name>.facts.csv` holds the cost lines as plain values (see `references/project-close-out.md`, For the dashboard). Finish the way every Scrooge report finishes, with where the money leaks: the most expensive lines, any over-sized or always-on item that needn't be, and what a reservation would save if Prod runs a year or more. Price each saving, and never touch what makes the system sound.
+Report from the script's `figures`, figure first: the grand total over the build and the horizon, split into delivery and run, with the contingency. When there is revenue, add the total revenue, the net, the payback year and the return on cost. Then give each environment's monthly and daily cost, the team's mandays and cost, the run support's mandays and cost per year, the gaps, and the workbook's path. Tell {user_name} that the blue cells are theirs to change in Excel, and that the model is the source: a rebuild replaces the workbook. For a dashboard, every data range is a named Excel table and `<name>.facts.csv` holds the cost lines as plain values (see `references/project-close-out.md`, For the dashboard). Finish the way every Scrooge report finishes, with where the money leaks: the most expensive lines, any over-sized or always-on item that needn't be, and what a reservation would save if Prod runs a year or more. Price each saving, and never touch what makes the system sound.
 
 Add or update the estimate's line in `estimates.md` in the sanctum.
+
+## Actual cloud spend (Azure Cost Management)
+
+The estimate prices the cloud at list price, month by month, with a daily rate derived from it (monthly × 12 / 365). What the subscription actually spends day by day lives in Azure Cost Management. After each estimate, until BOND.md records the answer, ask {user_name} once whether they have Azure Cost Management, or its daily cost exports, for this solution's subscription, and whether they'd like to bring the actuals in later to compare against the estimate. Record the answer in BOND.md (Money): the subscription or resource group, where the exports land, and how often. Never go looking for the data yourself. Scrooge reads cost exports only once {user_name} puts them in the project.
 
 ## Update
 

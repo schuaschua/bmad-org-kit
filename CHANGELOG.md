@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.6.0 — 2026-09-28
+
+### Scrooge McDuck
+
+- **Multi-year estimates.** An estimate now covers the build and then 3 to 5 years of run after go-live (`horizon_years`, default 5), with an optional yearly increase in run costs (`cost_escalation_pct`). A new **Multi-Year** sheet has columns Build and Year 1 to Year 5, zero past the horizon, so changing the horizon in Excel recalculates it. It shows revenue, every cost, contingency, net, cumulative net, the payback year and the return on cost.
+- **Revenue.** A new **Revenue** sheet holds yearly revenue per stream (`revenue`: amounts per year, basis, cite), from the owner or a cited business case, never estimated. Without revenue, the workbook shows costs only and lists the missing revenue as a gap.
+- **Run costs (OPEX).**
+  - A run support table on Overall: role × mandays per year × day rate (`support`), for IT support and maintenance.
+  - A **Run Costs** sheet for recurring yearly costs (`run_costs`: support contracts, licences).
+  - `run_months_per_year` for environments that don't run all year.
+  - The cost summary shows run per year and run over the horizon.
+- **Daily costs.**
+  - Each environment sheet has a daily cost column (monthly × 12 / 365).
+  - The ledger writes `claude_usage_daily.csv`: Claude calls, tokens and cost in USD per day, work item and model, refreshed by the background hooks. It's costed once `claude_prices.py --save` has run.
+  - The close-out adds it to the workbook as **Claude Usage Daily** (`tblClaudeUsageDaily`).
+- **Epics sheet.** One row per epic (`epics`: number, name, deliverables, working days, optional Claude API budget, cite).
+  - It shows working days, weeks and dates (from the new optional `start_date`, epics one after another), and the epic's share of the build: team mandays and cost, and infra during delivery.
+  - One-off costs are tagged to an epic with `epic` on the Other Costs line, which gains an Epic column.
+  - **Forecast against actual.** Forecast: team + infra + one-off + the Claude API budget. Actual, once an epic has actual start and end dates (from the timeline, or `actual_start` / `actual_end`): working days (NETWORKDAYS, like for like with the plan), days variance and %, the Claude API actual from the ledger, the actual cost (team and infra scaled by actual ÷ planned days, or the timesheet `actual_team_cost`) and the cost variance.
+  - Every figure is a formula, with spare rows to add epics in Excel; `<name>.epics.csv` holds the same as plain values (`tblEpics` in the workbook).
+- **Sprints sheet.** Fixed timeboxes of `sprint_days` (default 10) from the delivery start date, laid out by the sheet itself (`tblSprints`, `<name>.sprints.csv`).
+  - Forecast: planned days at the delivery team's and environments' daily cost, planned stories and an optional Claude API budget per sprint (`sprints`).
+  - Actual, up to the last actual activity (latest completed story or day of Claude usage): days worked, stories completed within the sprint's dates, Claude API cost on those days, team at the days worked or the timesheet `actual_team_cost`, and the cost variance.
+  - Sprints past the plan appear when work runs over.
+- **Dashboard facts in long format.** `<name>.facts.csv` is now one row per period, category and item (`estimate, currency, period, year, category, item, amount`), ready for Power BI.
+- **Actual cloud spend.** Scrooge asks (at First Breath and after the first estimate) whether Azure Cost Management, or its daily exports, is available for the subscription, and records the answer so actuals can sit beside the estimate later.
+- The sample (`assets/examples/falcon-portal/`) now covers five years, with revenue, run support, recurring run costs and daily Claude usage.
+
+### Upgrading
+
+- Estimate models from 1.5.0 need two changes before they rebuild: `assumptions.run_months` becomes `horizon_years` (3 to 5), and an environment's `run_months` becomes `run_months_per_year`. The build names both.
+- The facts CSV's columns changed; point existing dashboards at the new long format.
+
+
 ## 1.5.0 — 2026-09-28
 
 ### Scrooge McDuck

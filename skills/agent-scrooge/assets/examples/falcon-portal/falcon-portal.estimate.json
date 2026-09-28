@@ -8,8 +8,11 @@
     "delivery_days": 84,
     "working_days_per_month": 21,
     "hours_per_month": 730,
-    "run_months": 12,
-    "contingency_pct": 10
+    "contingency_pct": 10,
+    "horizon_years": 5,
+    "cost_escalation_pct": 3,
+    "start_date": "2026-03-02",
+    "sprint_days": 10
   },
   "environments": [
     {
@@ -151,7 +154,8 @@
           "usage": 1
         }
       ],
-      "delivery_months": 2
+      "delivery_months": 2,
+      "run_months_per_year": 12
     },
     {
       "name": "Prod",
@@ -270,7 +274,8 @@
     {
       "item": "Penetration test",
       "cost": 12000,
-      "cite": "owner: Security Lead, 2026-09-28"
+      "cite": "owner: Security Lead, 2026-09-28",
+      "epic": 2
     },
     {
       "item": "GitHub Enterprise seats (12 months)",
@@ -286,7 +291,8 @@
     "in_totals": false,
     "ledger": "token_usage/claude_usage.csv",
     "timeline": "token_usage/project_timeline.csv",
-    "prices": "claude-prices.json"
+    "prices": "claude-prices.json",
+    "daily": "token_usage/claude_usage_daily.csv"
   },
   "rate_card": {
     "currency": "USD",
@@ -319,15 +325,146 @@
       }
     ]
   },
+  "support": [
+    {
+      "role": "Developer",
+      "mandays_per_year": 60,
+      "cite": "owner: Delivery Manager, 2026-09-28",
+      "note": "bug fixes and small changes"
+    },
+    {
+      "role": "DevOps Engineer",
+      "mandays_per_year": 24,
+      "cite": "owner: Delivery Manager, 2026-09-28",
+      "note": "patching, upgrades, on-call"
+    },
+    {
+      "role": "QA Engineer",
+      "mandays_per_year": 12,
+      "cite": "owner: Delivery Manager, 2026-09-28"
+    }
+  ],
+  "run_costs": [
+    {
+      "item": "Azure support plan (Standard)",
+      "annual_cost": 1200,
+      "cite": "assumption: Standard support at list price"
+    },
+    {
+      "item": "GitHub Enterprise seats (4 for support)",
+      "annual_cost": 1000,
+      "cite": "assumption: 4 seats at list price"
+    }
+  ],
+  "revenue": [
+    {
+      "stream": "Application processing fees",
+      "basis": "$10 per application; 30,000 in year 1, +25% a year",
+      "amounts": [
+        300000,
+        375000,
+        468750,
+        585938,
+        732422
+      ],
+      "cite": "_bmad-output/specs/SPEC.md 7 Business case"
+    }
+  ],
+  "epics": [
+    {
+      "number": 1,
+      "epic": "Customer onboarding",
+      "deliverables": [
+        "1.1 Sign in with Entra ID",
+        "1.2 Start an application",
+        "1.3 Upload documents"
+      ],
+      "days": 40,
+      "api_budget": 150,
+      "cite": "_bmad-output/planning-artifacts/epics.md Epic 1: Customer onboarding"
+    },
+    {
+      "number": 2,
+      "epic": "Review and decision",
+      "deliverables": [
+        "2.1 Review queue",
+        "2.2 Approve or reject",
+        "2.3 Notify the customer"
+      ],
+      "days": 44,
+      "api_budget": 150,
+      "cite": "_bmad-output/planning-artifacts/epics.md Epic 2: Review and decision"
+    }
+  ],
+  "sprints": [
+    {
+      "number": 1,
+      "stories": [
+        "1.1 Sign in with Entra ID"
+      ]
+    },
+    {
+      "number": 2,
+      "stories": [
+        "1.2 Start an application"
+      ]
+    },
+    {
+      "number": 3,
+      "stories": [
+        "1.2 Start an application",
+        "1.3 Upload documents"
+      ]
+    },
+    {
+      "number": 4,
+      "stories": [
+        "1.3 Upload documents"
+      ]
+    },
+    {
+      "number": 5,
+      "stories": [
+        "2.1 Review queue"
+      ]
+    },
+    {
+      "number": 6,
+      "stories": [
+        "2.1 Review queue",
+        "2.2 Approve or reject"
+      ]
+    },
+    {
+      "number": 7,
+      "stories": [
+        "2.2 Approve or reject"
+      ]
+    },
+    {
+      "number": 8,
+      "stories": [
+        "2.3 Notify the customer"
+      ]
+    },
+    {
+      "number": 9,
+      "stories": [
+        "2.3 Notify the customer"
+      ]
+    }
+  ],
   "stamp": {
-    "built": "2026-09-28T01:50:11",
+    "built": "2026-09-28T10:57:59",
     "files": {
       "_bmad-output/planning-artifacts/architecture/falcon/ARCHITECTURE-SPINE.md": "888bd47cdcac5428251a930fa8a6839821f5989c80b9b54f4689896b0ab68829",
-      "_bmad-output/specs/SPEC.md": "a9e8b1197d6758f3ea44226bee501aa62e2cc33ca6fee30f9915cf3478d447ef",
-      "token_usage/claude_usage.csv": "edc93724cf8647054365c16a65a94f28d17fc6462feba94a8eef6c076136b023",
+      "_bmad-output/planning-artifacts/epics.md": "68f432fd10b0867a4ea5ee58e2523b7bb34f0f11d6ce37e5f02493da89ab8aac",
+      "_bmad-output/specs/SPEC.md": "13119f5f075640f50410940aedafc9b8c571105f80eb1ebaa76dbd34eafcf5ef",
+      "token_usage/claude_usage.csv": "a04b88ac9fafb0b608f7fcdb5f50d4600f5af23d251833b41e9cee60d564dc8b",
       "claude-prices.json": "0dcde61aa11063535136142216e4b4fab5d61c3bbb76918a0170db98a18ec51c",
-      "token_usage/project_timeline.csv": "4ea59cc7407f61b596f34554694d847dac55efe2836dccadc17d73bf7b74507d"
+      "token_usage/project_timeline.csv": "08bf946524c11d8897ee741e73ec10edd556ed434dcb770cff218a3db80ff64d",
+      "token_usage/claude_usage_daily.csv": "f12be0ce39fbf1661949646fad9c3294784d1513ba5fc1e3253fd1103ec55361"
     },
-    "workbook_mtime": 1790531411.1910331
+    "workbook_mtime": 1790564279.3597043
   }
 }

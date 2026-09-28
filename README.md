@@ -9,7 +9,7 @@ A BMad module that adds the organisation layer to any BMad Method (`bmm`) projec
 - **Leonardo da Vinci (`leonardo-da-vinci`), Architecture Diagrams and Design Documents** — writes cited High-Level and Low-Level Design Word documents, and draws draw.io diagrams (C4 context, C4 containers, cloud deployment with Azure and Kubernetes icons, data flow with trust boundaries and PII/PHI, sequence for a named flow) from the project's architecture spine, spec and UX docs only. Every box and arrow cites its AD or section, gaps are listed rather than drawn, it challenges the architecture before drawing, and a drift check flags diagrams older than their spine.
 - **Jules (`agent-jules`), IT Governance** — drafts, coaches and routes the Technical Architecture, Data Governance & Privacy and Enterprise AI Risk Assessment answers for the Product Lead and Tech Lead from the project's BMad artifacts, replies to reviewer comments and checks answers for drift. Jules asks whether your organisation has its own questionnaire templates (put them in the governance folder), and ports answers to similar questions over from the three standard ones. Jules also considers the regulatory documents of the region the solution is developed in, chosen at setup, citing the clause it relies on and checking each document's date before relying on it.
 
-Version 1.5.0 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
+Version 1.6.0 (see [CHANGELOG.md](CHANGELOG.md)). Expansion of BMad Method.
 
 ## What this adds to BMad, and why it's different
 
@@ -119,11 +119,31 @@ Ask Scrooge for a cost estimate ("what will this cost to build and run?", "price
 - **Challenges first.** Gaps and contradictions that move the price (an unsized database, unstated DR) are put to you, most expensive first, before anything is priced.
 - **Priced at source.** Cloud lines use Microsoft's public Retail Prices API (`skills/agent-scrooge/scripts/azure_prices.py`), at list price, with the meter id and date. Day rates come only from your rate card (`rate-card.json` in the sanctum). Discounts only when you give them.
 - **Cited, not guessed.** Each line cites its AD or section, `owner: <who, date>`, or an agreed `assumption:`. Anything undecided is a gap listed in the workbook, never in a total.
-- **The workbook** (`<name>.xlsx`, built by `build_estimate.py` from `<name>.estimate.json`): **Overall** (inputs: days of delivery, working days per month, hours per month, months of run, contingency, exchange rate; the team table with role, day rate, employees, days, allocation, mandays and cost; and the cost summary of delivery, run and grand totals), one sheet per **environment**, **Rate Card**, **Other Costs**, and **Sources & Gaps**. Every total is a formula, so changing a blue cell recalculates it in Excel.
+- **The workbook** (`<name>.xlsx`, built by `build_estimate.py` from `<name>.estimate.json`) covers the build and then 3 to 5 years of running the solution:
+  - **Overall:** the inputs (days of delivery, working days per month, hours per month, years of run after go-live, yearly increase in run costs, contingency, exchange rate). The delivery team (role, day rate, employees, days, allocation, mandays, cost). The run support team (OPEX: role × mandays per year, for IT support and maintenance). The cost summary: delivery, run per year, run over the horizon, grand total.
+  - **Epics:** forecast against actual for each epic.
+    - Forecast: its deliverables, planned working days, weeks and dates; its share of the delivery team (mandays and cost) and of the infra during delivery; its tagged one-off costs; its Claude API budget.
+    - Actual: its dates, working days and variance (days and %), its Claude API actual, its actual cost (timesheets, or scaled from the actual days) and the cost variance.
+    - All formulas, with spare rows to add an epic in Excel.
+  - **Sprints:** fixed timeboxes of the sprint length (default 10 working days) from the delivery start.
+    - Forecast: planned days, planned stories, team and infra at their daily cost, and an optional Claude API budget.
+    - Actual, up to the last activity: days worked, stories done, Claude API cost on those days, actual cost (timesheets or days worked) and the variance.
+    - Overrun sprints appear by themselves.
+  - **Multi-Year:** the build, then Year 1 to Year 5: revenue, every cost, contingency, net, cumulative net, payback year and return on cost. Years past the horizon show zero.
+  - **Revenue:** yearly revenue per stream, from you or a cited business case, never estimated.
+  - **Run Costs:** recurring yearly costs such as support contracts and licences.
+  - One sheet per **environment**, with a monthly, daily and annual cost per line.
+  - **Rate Card**, **Other Costs** (one-off) and **Sources & Gaps**.
+
+  Every total is a formula, so changing a blue cell recalculates it in Excel.
 - **Kept current.** `uv run skills/agent-scrooge/scripts/build_estimate.py <project-root> <name>.estimate.json --drift` names the cited files and rate card that changed since the build. A rebuild refuses to overwrite a workbook you edited by hand; Scrooge carries your edits into the model first.
 
 - **Close-out.** At the end of the project Scrooge records how long it took: each BMad stage (from git), each custom agent (from its sanctum), each epic and story (from the sprint status's git history), start to finish in calendar and working days. He adds the total Claude API calls, costed at the list prices read from Anthropic's pricing page, as the Claude Usage, Claude Prices and Project Timeline sheets and a line in the cost summary (a memo when Claude Code was on a subscription).
-- **Dashboards.** Every data range is a named Excel table (`tblCostSummary`, `tblTeam`, `tblEnv<name>`, `tblClaudeUsage`, `tblTimeline` ...) for Power BI or Excel Online. Power BI reads the values Excel last saved, so open and save a fresh build once, or use the plain-value CSVs: `<name>.facts.csv` beside the workbook, and `claude_usage.csv` and `project_timeline.csv` in the token usage folder.
+- **Dashboards.** Every data range is a named Excel table (`tblCostSummary`, `tblTeam`, `tblEnv<name>`, `tblClaudeUsage`, `tblTimeline` ...) for Power BI or Excel Online. Power BI reads the values Excel last saved, so open and save a fresh build once, or use the plain-value CSVs:
+  - `<name>.facts.csv` beside the workbook: every revenue and cost line per period (Build, Year 1..5).
+  - `<name>.epics.csv` and `<name>.sprints.csv` beside it: one row per epic or sprint, forecast and actual.
+  - In the token usage folder: `claude_usage_daily.csv` (Claude calls, tokens and cost per day, refreshed after every turn), `claude_usage.csv` and `project_timeline.csv`.
+- **Actual cloud spend.** Estimates use list prices. Scrooge asks whether you have Azure Cost Management, or its daily exports, so the actual daily spend can sit beside the estimate later.
 
 Estimates are in US dollars unless a project asks Scrooge for another currency. To see a finished workbook before running one, open the synthetic sample in `skills/agent-scrooge/assets/examples/falcon-portal/` (`falcon-portal.xlsx`, with the model, inputs and a rebuild command in its README).
 

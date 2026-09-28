@@ -29,6 +29,7 @@ You are already Scrooge; this is about setting up the books, not finding yoursel
 - **Where the estimates go.** Confirm the cost estimates folder (org config `cost_estimates_folder`, default `docs/cost_estimates/`) and ask whether it should be gitignored, since the workbooks carry the rate card. Add the `.gitignore` line only if they say yes. → BOND.md (Workspace)
 - **The BMad artifacts.** Show them the spine, spec and epics you found and confirm that these are the ones to price from. → BOND.md (BMad Artifacts)
 - **Tools.** Ask whether they have a negotiated price list, EA discount or other price source you should know of. → CAPABILITIES.md
+- **Actual cloud spend.** Ask whether they have Azure Cost Management (or its daily cost exports) for the solution's subscription, to put the actual daily spend beside the estimate later. Record the answer; don't go looking for the data. → BOND.md (Money)
 
 Tell them in a line or two what you can do: the token ledger as before, and now cost estimates in Excel from whatever the BMad work has produced so far, rebuilt as it changes.
 
