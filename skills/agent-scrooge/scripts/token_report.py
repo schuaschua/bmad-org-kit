@@ -11,7 +11,8 @@ token_usage_folder, else <project>/docs/token_usage/):
 
   token_usage.csv                one row per work item x day x step x activity x model
   token_usage_summary.csv        planning phases; each story as a total plus six activity rows
-  token_usage_summary_final.csv  planning phases; all stories combined into six activity rows
+  token_usage_summary_final.csv  planning phases; all stories combined into six activity rows; each epic's
+                                 stories; with the Claude API budget, actual (USD) and variance where budgeted
   report.md                      the same data as readable tables
   claude_usage.csv               tokens by type per work item x model, with first and last call time
                                  (for Claude API pricing, the project timeline and dashboards)
@@ -38,6 +39,9 @@ Project data (optional, kept out of the installed skill so updates never overwri
 <project>/_bmad/memory/agent-scrooge/:
   stories.json   {"stories": {"PROJ-18": ["2.3", "Choose a product"], ...}}: story numbers and titles
   savings.json   {"savings": {"<row>": "<suggestion>", ...}}: replaces or adds suggested savings
+  token-budgets.json  {"currency": "USD", "phases": {"test design": 40, ...}, "epics": {"1": 150, ...}, "cite": "..."}:
+                 the Claude API budget per planning phase and per epic, in USD at Claude API list prices; the
+                 final summary and report.md compare it with the actual (needs claude-prices.json)
 
 Exit codes: 0 ok, 2 error (no log folder, unreadable input).
 """
@@ -158,6 +162,7 @@ SAVINGS = {
     "bmad-build trial": "One-off cost; nothing to save.",
     "planning changes (correct course)": "Fold small course corrections into the next story brief instead of a separate proposal.",
     "token reporting": "The hook refreshes the files for free; ask Scrooge only when you want an explanation.",
+    "epic": "An epic over its Claude API budget: look for reruns and long review loops in its stories before the next epic, and set the next budget from this actual.",
     "all stories": "The biggest lever is shorter agent contexts: every call re-reads everything the agent has seen, so start each step in a fresh agent with only the story brief.",
     "reading/shell": "Start each step (implement, review, fix) in a fresh agent that gets a one-page brief, not the full planning documents; use a small model for code searches; avoid re-reading large files.",
     "thinking/reporting": "Run the orchestrating build agent on a cheaper model, or let the main session run the steps directly; ask agents for short final reports.",
@@ -548,15 +553,67 @@ def daily_rows(calls: list[dict], stories: dict[str, tuple[str, str]], prices: d
     return rows
 
 
+def load_budgets(path: Path) -> dict:
+    """Claude API budgets in USD: {"phases": {phase: usd}, "epics": {"1": usd}}; {} without the file."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    budgets = {"phases": {str(k).strip().lower(): float(v) for k, v in (data.get("phases") or {}).items()},
+               "epics": {str(k).strip(): float(v) for k, v in (data.get("epics") or {}).items()}}
+    return budgets if budgets["phases"] or budgets["epics"] else {}
+
+
+def call_usd(call: dict, prices: dict) -> float | None:
+    """One call's cost at Claude API list prices; None when its model has no saved price."""
+    price = prices.get(_pricing_id(call["model"]))
+    if not price:
+        return None
+    return sum(call[k] * price[k] for k in ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")) / 1e6
+
+
+def _epic_of(item: str, stories: dict[str, tuple[str, str]]) -> str:
+    number = stories.get(item, ("", ""))[0]
+    return number.partition(".")[0] if number else ""
+
+
+def budget_rows(calls: list[dict], stories: dict[str, tuple[str, str]], prices: dict, budgets: dict) -> list[dict]:
+    """Budget against actual (USD) for each budgeted phase and epic, then the total: for the final summary and report."""
+    if not budgets or not prices:
+        return []
+    actual: collections.Counter = collections.Counter()
+    for c in calls:
+        usd = call_usd(c, prices) or 0.0
+        actual["total"] += usd
+        if c["kind"] == "planning":
+            actual[("phase", c["item"].lower())] += usd
+        elif c["kind"] == "story" and _epic_of(c["item"], stories):
+            actual[("epic", _epic_of(c["item"], stories))] += usd
+    rows = []
+    for phase, budget in budgets.get("phases", {}).items():
+        rows.append({"row": f"Planning: {phase}", "budget_usd": budget, "actual_usd": actual[("phase", phase)]})
+    for epic, budget in sorted(budgets.get("epics", {}).items(), key=lambda kv: (not kv[0].isdigit(), int(kv[0]) if kv[0].isdigit() else 0, kv[0])):
+        rows.append({"row": f"Epic {epic}", "budget_usd": budget, "actual_usd": actual[("epic", epic)]})
+    rows.append({"row": "Total", "budget_usd": sum(r["budget_usd"] for r in rows), "actual_usd": actual["total"]})
+    for r in rows:
+        r["variance_usd"] = r["actual_usd"] - r["budget_usd"]
+        r["variance_pct"] = r["actual_usd"] / r["budget_usd"] - 1 if r["budget_usd"] else None
+    return rows
+
+
 def summary_rows(calls: list[dict], stories: dict[str, tuple[str, str]], combine_stories: bool,
-                 savings: dict[str, str] | None = None) -> list[list]:
+                 savings: dict[str, str] | None = None, prices: dict | None = None,
+                 budgets: dict | None = None) -> list[list]:
     grand = sum(c["units"] for c in calls) or 1
     by_item: dict = collections.defaultdict(collections.Counter)
+    usd_by_item: collections.Counter = collections.Counter()
     for call in calls:
         counter = by_item[(call["kind"], call["item"])]
         counter["total"] += call["units"]
         counter["calls"] += 1
         counter[SUMMARY_ACTIVITY.get(call["activity"], "thinking/reporting")] += call["units"]
+        if prices:
+            usd_by_item[(call["kind"], call["item"])] += call_usd(call, prices) or 0.0
 
     def share(units: float) -> str:
         return f"{units / grand:.2%}"
@@ -585,6 +642,15 @@ def summary_rows(calls: list[dict], stories: dict[str, tuple[str, str]], combine
         rows.append([name, round(v["total"]), share(v["total"]), note])
         for activity, activity_note in ACTIVITY_NOTES.items():
             rows.append([f"{name} · {activity}", round(v[activity]), share(v[activity]), activity_note])
+    if combine_stories:  # each epic's stories, so the epic budgets have a row to sit on
+        epics: dict = collections.defaultdict(list)
+        for key in story_keys:
+            if _epic_of(key[1], stories):
+                epics[_epic_of(key[1], stories)].append(key)
+        for epic in sorted(epics, key=lambda e: (not e.isdigit(), int(e) if e.isdigit() else 0, e)):
+            v = sum((by_item[k] for k in epics[epic]), collections.Counter())
+            rows.append([f"Epic {epic}", round(v["total"]), share(v["total"]),
+                         f"Epic total, part of All stories: {len(epics[epic])} stories, {v['calls']} API calls"])
     for key, label in ((("ops", "merges, promotions & deploys"), "Merges, promotions & deploys"), (("other", "other"), "Other")):
         v = by_item.get(key)
         if v:
@@ -592,6 +658,38 @@ def summary_rows(calls: list[dict], stories: dict[str, tuple[str, str]], combine
     rows.append(["Total", round(grand), "100.00%",
                  "Cost units weight cache reads 0.1, cache writes 1.25-2, output 5 against fresh input (not dollars)"])
     if combine_stories:
+        # Claude API cost in USD (list prices), and the budget and variance where one was set
+        rows[0][4:4] = ["actual_usd", "budget_usd", "variance_usd", "variance_pct"]  # before suggested_cost_saving
+        budget = {b["row"]: b for b in budget_rows(calls, stories, prices or {}, budgets or {})}
+        for row in rows[1:]:
+            label = row[0]
+            if not prices:
+                usd = None
+            elif label == "Total":
+                usd = sum(usd_by_item.values())
+            elif label.startswith("Planning: "):
+                usd = usd_by_item[("planning", label[len("Planning: "):])]
+            elif label.startswith("Epic "):
+                usd = sum(u for (kind, item), u in usd_by_item.items()
+                          if kind == "story" and _epic_of(item, stories) == label[len("Epic "):])
+            elif label.startswith("All stories") and " · " not in label:
+                usd = sum(u for (kind, _), u in usd_by_item.items() if kind == "story")
+            elif label == "Merges, promotions & deploys":
+                usd = usd_by_item[("ops", "merges, promotions & deploys")]
+            elif label == "Other":
+                usd = usd_by_item[("other", "other")]
+            else:
+                usd = None  # activity rows: cost units only
+            b = budget.get("Planning: " + label[len("Planning: "):].lower() if label.startswith("Planning: ") else label)
+            row += ["" if usd is None else round(usd, 2), "" if not b else round(b["budget_usd"], 2),
+                    "" if not b else round(b["variance_usd"], 2),
+                    "" if not b or b["variance_pct"] is None else f"{b['variance_pct']:+.1%}"]
+        seen = {r[0] if not r[0].startswith("Planning: ") else "Planning: " + r[0][10:].lower() for r in rows[1:]}
+        for b in budget.values():  # a budgeted phase or epic with no spend yet still shows
+            if b["row"] not in seen:
+                rows.insert(len(rows) - 1, [b["row"], 0, share(0), "Budgeted, no Claude usage yet", 0.0,
+                                            round(b["budget_usd"], 2), round(b["variance_usd"], 2),
+                                            f"{b['variance_pct']:+.1%}" if b["variance_pct"] is not None else ""])
         for row in rows[1:]:
             label = row[0]
             if label.startswith("Planning: "):
@@ -600,13 +698,16 @@ def summary_rows(calls: list[dict], stories: dict[str, tuple[str, str]], combine
                 key = label[len("All stories · "):]
             elif label.startswith("All stories"):
                 key = "all stories"
+            elif label.startswith("Epic "):
+                key = "epic"
             else:
                 key = label
             row.append({**SAVINGS, **(savings or {})}.get(key, ""))
     return rows
 
 
-def report_markdown(calls: list[dict], stories: dict[str, tuple[str, str]], source: str) -> str:
+def report_markdown(calls: list[dict], stories: dict[str, tuple[str, str]], source: str,
+                    budget: list[dict] | None = None) -> str:
     grand = sum(c["units"] for c in calls) or 1
 
     def fmt(n: float) -> str:
@@ -629,6 +730,13 @@ def report_markdown(calls: list[dict], stories: dict[str, tuple[str, str]], sour
 
     lines = ["# Token usage", "", f"Source: {source} ({len(calls)} API calls).",
              "Cost units = input×1 + cache read×0.1 + cache write×1.25 (5 min) or ×2 (1 h) + output×5; relative, not dollars.", ""]
+    if budget:
+        lines += ["## Claude API budget against actual (USD, Claude API list prices)", "",
+                  "| phase or epic | budget | actual | variance | variance % |", "|---|---|---|---|---|"]
+        for b in budget:
+            pct = "" if b["variance_pct"] is None else f"{b['variance_pct']:+.1%}"
+            lines.append(f"| {b['row']} | {b['budget_usd']:,.2f} | {b['actual_usd']:,.2f} | {b['variance_usd']:+,.2f} | {pct} |")
+        lines += ["", "The total's actual counts all Claude usage, budgeted or not.", ""]
     lines += table("By kind of work", "kind", lambda c: c["kind"])
     lines += table("By work item (story or planning phase)", "work item", lambda c: (c["kind"], c["item"]))
     lines += table("By step", "step", lambda c: c["step"])
@@ -694,12 +802,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.verbose:
         print(f"{len(calls)} calls from {log_dir}", file=sys.stderr)
     prices = load_prices(root / DATA_DIR / "claude-prices.json")
+    budgets = load_budgets(root / DATA_DIR / "token-budgets.json")
 
     outputs = {
         "token_usage.csv": lambda fh: csv.writer(fh).writerows(detail_rows(calls, stories)),
         "token_usage_summary.csv": lambda fh: csv.writer(fh).writerows(summary_rows(calls, stories, combine_stories=False)),
-        "token_usage_summary_final.csv": lambda fh: csv.writer(fh).writerows(summary_rows(calls, stories, combine_stories=True, savings=savings)),
-        "report.md": lambda fh: fh.write(report_markdown(calls, stories, str(log_dir))),
+        "token_usage_summary_final.csv": lambda fh: csv.writer(fh).writerows(
+            summary_rows(calls, stories, combine_stories=True, savings=savings, prices=prices, budgets=budgets)),
+        "report.md": lambda fh: fh.write(report_markdown(calls, stories, str(log_dir), budget_rows(calls, stories, prices, budgets))),
         "claude_usage.csv": lambda fh: csv.writer(fh).writerows(usage_rows(calls, stories)),
         "claude_usage_daily.csv": lambda fh: csv.writer(fh).writerows(daily_rows(calls, stories, prices)),
     }
@@ -708,6 +818,12 @@ def main(argv: list[str] | None = None) -> int:
 
     result = {"written": [str(out_dir / name) for name in outputs], "calls": len(calls),
               "cost_units": round(sum(c["units"] for c in calls))}
+    budget = budget_rows(calls, stories, prices, budgets)
+    if budget:
+        result["budgets"] = [{k: (round(v, 4) if k == "variance_pct" else round(v, 2)) if isinstance(v, float) else v
+                              for k, v in b.items()} for b in budget]
+    elif budgets and not prices:
+        result["budgets"] = "budgets set but no Claude prices saved: run claude_prices.py --save to compare"
     if args.story:
         result["story"] = story_summary(calls, args.story, stories)
     print(json.dumps(result, indent=2))

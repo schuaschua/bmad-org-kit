@@ -13,6 +13,8 @@ costs and the gaps, each line citing where it came from. The workbook has:
                    after go-live (3-5), yearly increase in run costs, contingency, exchange rate), the
                    delivery team (employees x days x allocation = mandays, priced from the rate card),
                    the run support team (OPEX: mandays per year) and the cost summary gathering every sheet
+  Phase Budgets    the Claude API budget for each planning phase still to run (test design, governance ...),
+                   against its actual from the ledger once the close-out sheets are in
   Multi-Year       the build, then Year 1..5 (zero past the horizon): revenue, every cost, contingency,
                    net and cumulative net, payback and return on cost
   Revenue          yearly revenue per stream, from the owner or the business case
@@ -24,9 +26,12 @@ costs and the gaps, each line citing where it came from. The workbook has:
   Sources & Gaps   price basis, assumptions, what is not priced yet, and the stamp of every cited file
 
 Every data range is a named Excel table (tblInputs, tblTeam, tblCostSummary, tblEnv<name>, tblRateCard,
-tblOtherCosts, and with close_out tblClaudeUsage, tblClaudeUsageDetail, tblClaudePrices, tblTimeline,
+tblOtherCosts, tblPhaseBudgets, and with close_out tblClaudeUsage, tblClaudeUsageDetail, tblClaudePrices, tblTimeline,
 tblAIFeedback),
-so Power BI and Excel Online can load them by name. Formulas get their values when Excel first opens
+so Power BI and Excel Online can load them by name. <name>.infra_cost.csv, also beside the workbook, has the
+infrastructure OPEX after go-live: every priced cloud line, each environment's total and the grand total, as
+daily, weekly, monthly and annual cost (daily = monthly x 12 / 365, weekly = daily x 7, annual = monthly x the
+environment's run months per year; year-one prices, before any yearly increase or contingency). Formulas get their values when Excel first opens
 the file (Power BI reads the values Excel last saved), so <name>.facts.csv is also written beside the
 workbook, with every cost line as a plain value for dashboards that read files directly.
 
@@ -50,6 +55,7 @@ Model (JSON):
    "revenue": [{"stream": "Subscriptions", "basis": "1,000 customers x $20/month", "amounts": [240000, 300000, 360000,
                 420000, 480000], "cite": "_bmad-output/specs/SPEC.md 7 Business case"}],
    "other_costs": [{"item": "Penetration test", "cost": 40000, "cite": "owner: Tech Lead, 2026-09-28"}],
+   "phase_budgets": [{"phase": "test design", "api_budget": 40, "cite": "owner: Delivery Manager, 2026-09-28"}],
    "gaps": ["Prod DR region: the spine does not say whether there is one"],
    "close_out": {"fx_rate": 3.6725, "fx_source": "...", "in_totals": true}}    optional, at the project's end
 
@@ -66,6 +72,9 @@ Model (JSON):
   usage: units per month per quantity; "hours" means the Hours per month input (always-on).
   null delivery_months / days mean the Overall inputs; run_months_per_year defaults to 12.
   revenue amounts: one per year of the horizon (up to 5), never invented: from the owner or a cited business case.
+  phase_budgets: the Claude API budget (reporting currency, API list prices) per planning phase, named as the token
+  ledger names it (claude_usage.csv work_item). A control figure beside the epics' and sprints' api_budget: it is
+  compared with the actual, never added to a total (the close-out's Claude API usage line already holds the actual).
 
 Rate card: <project>/_bmad/memory/agent-scrooge/rate-card.json (or --rate-card, or "rate_card" in
 the model): {"currency": "AED", "updated": "2026-09-28", "source": "...",
@@ -94,7 +103,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 DATA_DIR = Path("_bmad") / "memory" / "agent-scrooge"
-RESERVED = {"overall", "rate card", "other costs", "run costs", "revenue", "multi-year", "epics", "sprints", "sources & gaps",
+RESERVED = {"overall", "rate card", "other costs", "run costs", "revenue", "multi-year", "epics", "sprints", "phase budgets",
+            "sources & gaps",
             "claude prices", "claude usage", "claude usage detail", "claude usage daily", "project timeline"}
 SPARE_ROWS = 3
 DEFAULTS = {"working_days_per_month": 21, "hours_per_month": 730, "horizon_years": 5, "cost_escalation_pct": 0,
@@ -313,6 +323,18 @@ def validate(root: Path, model: dict, card: dict) -> list[str]:
         for key in ("api_budget", "actual_team_cost"):
             if sprint.get(key) is not None and not is_number(sprint[key]):
                 errors.append(f"{pw}: {key} is zero or more, or left out")
+    phases = []
+    for b_i, budget in enumerate(model.get("phase_budgets") or []):
+        bw = f"phase_budgets[{b_i}] '{budget.get('phase', '')}'"
+        if not isinstance(budget.get("phase"), str) or not budget["phase"].strip():
+            errors.append(f"{bw}: phase is the planning phase as the token ledger names it (e.g. test design)")
+        elif budget["phase"].strip().lower() in phases:
+            errors.append(f"{bw}: phase '{budget['phase']}' is budgeted twice")
+        else:
+            phases.append(budget["phase"].strip().lower())
+        if not is_number(budget.get("api_budget")):
+            errors.append(f"{bw}: api_budget is zero or more")
+        check_cite(root, budget.get("cite"), bw, errors)
     if a.get("start_date"):
         try:
             datetime.fromisoformat(str(a["start_date"]))
@@ -561,6 +583,21 @@ def compute(model: dict, card: dict, close: dict | None = None) -> dict:
                        cost_variance=total_a - forecast)
         sprints_out.append(row)
 
+    # Phase budgets: the Claude API budget per planning phase against the ledger's actual for that work item
+    item_cost: dict[str, float] = {}
+    for u in (close or {}).get("usage") or []:
+        price = known.get(pricing_id(u["model"]))
+        if price:
+            item_cost[u["work_item"].lower()] = item_cost.get(u["work_item"].lower(), 0) + sum(
+                int(u.get(f"{k_}_tokens") or 0) * price[k_] for k_ in
+                ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")) / 1e6 * close["fx_rate"]
+    phases_out = []
+    for b in model.get("phase_budgets") or []:
+        actual = item_cost.get(b["phase"].strip().lower(), 0.0) if close else None
+        phases_out.append({"phase": b["phase"], "api_budget": b["api_budget"], "api_actual": actual,
+                           "variance": None if actual is None else actual - b["api_budget"],
+                           "variance_pct": None if actual is None or not b["api_budget"] else actual / b["api_budget"] - 1})
+
     periods = ["Build"] + [f"Year {k + 1}" for k in range(MAX_YEARS)]
     payback = next((p_ for p_, c in zip(periods, cumulative) if c >= 0), "beyond the horizon")
     r2 = lambda x: round(x, 2)  # noqa: E731
@@ -574,6 +611,7 @@ def compute(model: dict, card: dict, close: dict | None = None) -> dict:
                  "cost": r2(people)},
         "support": {"mandays_per_year": r2(support_md), "cost_per_year": r2(support)},
         "run_costs_per_year": r2(run_costs),
+        "infra_opex": {k: r2(v) for k, v in infra_rows(model)[-1].items() if k in ("daily", "weekly", "monthly", "annual")},
         "other_costs": r2(other),
         **({"claude": claude} if claude else {}),
         "subtotal": {"delivery": r2(delivery), "run_per_year": r2(run_per_year), "run": r2(run), "total": r2(delivery + run)},
@@ -589,6 +627,8 @@ def compute(model: dict, card: dict, close: dict | None = None) -> dict:
         "epics": [{k_: (round(v, 4) if k_ in ("share", "days_variance_pct") else r2(v)) if isinstance(v, float) else v
                    for k_, v in x.items()} for x in epics_out],
         "sprints": [{k_: r2(v) if isinstance(v, float) else v for k_, v in x.items()} for x in sprints_out],
+        "phase_budgets": [{k_: (round(v, 4) if k_ == "variance_pct" else r2(v)) if isinstance(v, float) else v
+                           for k_, v in x.items()} for x in phases_out],
         "gaps": len(model.get("gaps") or []),
     }
 
@@ -603,7 +643,7 @@ def sha(path: Path) -> str:
 def cited_files(model: dict) -> list[str]:
     cites = [i.get("cite", "") for e in model.get("environments", []) for i in e.get("items", [])]
     cites += [m.get("cite", "") for m in model.get("team") or []]
-    for key in ("other_costs", "run_costs", "support", "revenue"):
+    for key in ("other_costs", "run_costs", "support", "revenue", "phase_budgets"):
         cites += [o.get("cite", "") for o in model.get(key) or []]
     cites += [x.get("cite", "") for x in model.get("epics") or []]
     files = {split_cite(c)[1] for c in cites if isinstance(c, str)}
@@ -1274,6 +1314,41 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
     widths(sp, [8, 12, 12, 10, 34, 14, 13, 13, 15, 10, 10, 34, 14, 15, 15, 14])
     sp.freeze_panes = "B5"
 
+    # --- Phase Budgets: the Claude API budget per planning phase against the ledger's actual
+    pb = wb.create_sheet("Phase Budgets")
+    put(pb, "A1", "Phase budgets: Claude API budget and actual per planning phase", font=TITLE)
+    put(pb, "A2", f"In {ccy}, at Claude API list prices. The budget each planning phase may spend (test design, governance, "
+                  "diagrams, course corrections ...), set once the epics and sprint plan are done; the epics and sprints carry "
+                  "their own budgets on their sheets. Actual: the phase's Claude cost from the ledger (Claude Usage Detail) "
+                  "once the close-out sheets are in. A control figure: not added to any total. Blue cells are inputs; "
+                  "name a phase as the token ledger does.")
+    header(pb, 4, ["Phase", f"Claude API budget ({ccy})", f"Claude API actual ({ccy})", f"Variance ({ccy})", "Variance %",
+                   "Cited from"])
+    budgets = model.get("phase_budgets") or []
+    first_b, last_b = 5, 4 + len(budgets) + SPARE_ROWS
+    for i in range(len(budgets) + SPARE_ROWS):
+        r = first_b + i
+        b_ = budgets[i] if i < len(budgets) else None
+        if b_:
+            put(pb, f"A{r}", b_["phase"], None, BLUE)
+            put(pb, f"B{r}", b_["api_budget"], MONEY, BLUE)
+            pb.cell(row=r, column=6, value=b_["cite"]).alignment = WRAP
+        for col in "AB":
+            pb[f"{col}{r}"].font = BLUE
+        if close:
+            put(pb, f"C{r}", f'=IF(A{r}="","",SUMIFS({detail}!$P$5:$P${4 + max(n_usage, 1)},'
+                             f'{detail}!$B$5:$B${4 + max(n_usage, 1)},A{r}))', MONEY)
+        put(pb, f"D{r}", f'=IF(OR(A{r}="",C{r}=""),"",C{r}-N(B{r}))', '+#,##0.00;-#,##0.00;0.00')
+        put(pb, f"E{r}", f'=IF(OR(D{r}="",N(B{r})=0),"",C{r}/B{r}-1)', '+0.0%;-0.0%;0.0%')
+    add_table(pb, "tblPhaseBudgets", "A", 4, "F", last_b)
+    r = last_b + 1
+    put(pb, f"A{r}", "Total")
+    for col in "BCD":
+        put(pb, f"{col}{r}", f"=SUM({col}{first_b}:{col}{last_b})", MONEY)
+    total_row(pb, r, 6)
+    widths(pb, [34, 16, 16, 14, 11, 40])
+    pb.freeze_panes = "B5"
+
     # --- Sources & Gaps
     sg = wb.create_sheet("Sources & Gaps")
     put(sg, "A1", "Sources, assumptions and gaps", font=TITLE)
@@ -1306,7 +1381,8 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
         if kind != "file":
             assumed.append(f"Team / {m['role']}: {kind}: {ref}")
     for label, entries, key in (("Other", model.get("other_costs"), "item"), ("Run cost", model.get("run_costs"), "item"),
-                                ("Support", model.get("support"), "role"), ("Revenue", model.get("revenue"), "stream")):
+                                ("Support", model.get("support"), "role"), ("Revenue", model.get("revenue"), "stream"),
+                                ("Phase budget", model.get("phase_budgets"), "phase")):
         for o in entries or []:
             kind, _, ref = split_cite(o["cite"])
             if kind != "file":
@@ -1326,7 +1402,7 @@ def write_workbook(model: dict, card: dict, stamp: dict, out: Path, close: dict 
         write_close_out(wb, close, ccy, dict(put=put, header=header, widths=widths, total_row=total_row,
                                              add_table=add_table, q=q, TITLE=TITLE, SECTION=SECTION, MONEY=MONEY,
                                              QTY=QTY, BLUE=BLUE, GREEN=GREEN, BOLD=BOLD))
-    order = ["Overall", "Multi-Year", "Epics", "Sprints", "Revenue", "Rate Card", "Other Costs", "Run Costs",
+    order = ["Overall", "Multi-Year", "Epics", "Sprints", "Phase Budgets", "Revenue", "Rate Card", "Other Costs", "Run Costs",
              *[e["name"] for e in model["environments"]],
              "Claude Prices", "Claude Usage", "Claude Usage Detail", "Claude Usage Daily", "Project Timeline", "AI Feedback",
              "Sources & Gaps"]
@@ -1562,6 +1638,53 @@ def write_sprints(model: dict, figures: dict, out: Path) -> None:
                         "; ".join(x["planned_stories"]), "; ".join(x["stories_done_list"])])
 
 
+def infra_rows(model: dict) -> list[dict]:
+    """Infrastructure OPEX after go-live: each priced cloud line, each environment's total, then the grand total."""
+    a = settings(model)
+    rows, grand = [], {"daily": 0.0, "weekly": 0.0, "monthly": 0.0, "annual": 0.0}
+    for env in model["environments"]:
+        months = env.get("run_months_per_year", 12)
+        total = dict.fromkeys(grand, 0.0)
+        for item in env["items"]:
+            monthly = item["unit_price"] * item["quantity"] * item_usage(item, a) * a["fx_rate"]
+            daily = monthly * 12 / 365
+            cost = {"daily": daily, "weekly": daily * 7, "monthly": monthly, "annual": monthly * months}
+            rows.append({"line": "item", "environment": env["name"], "component": item["component"],
+                         "service": item["service"], "sku": item.get("sku", ""), "run_months_per_year": months, **cost,
+                         "cite": item["cite"], "price_source": item["price_source"]})
+            for k in total:
+                total[k] += cost[k]
+        rows.append({"line": "environment total", "environment": env["name"], "component": "", "service": "", "sku": "",
+                     "run_months_per_year": months, **total, "cite": "", "price_source": ""})
+        for k in grand:
+            grand[k] += total[k]
+    rows.append({"line": "total", "environment": "", "component": "", "service": "", "sku": "", "run_months_per_year": "",
+                 **grand, "cite": "", "price_source": ""})
+    return rows
+
+
+def write_infra_cost(model: dict, out: Path) -> None:
+    """The infrastructure OPEX (daily, weekly, monthly, annual) as plain values, for people and dashboards."""
+    fields = ["line", "environment", "component", "service", "sku", "run_months_per_year", "daily", "weekly", "monthly",
+              "annual", "cite", "price_source"]
+    with out.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["estimate", "currency", *fields])
+        for x in infra_rows(model):
+            w.writerow([model["name"], model["currency"],
+                        *[round(x[f], 2) if isinstance(x[f], float) else x[f] for f in fields]])
+
+
+def write_phases(model: dict, figures: dict, out: Path) -> None:
+    """One row per budgeted planning phase: Claude API budget against actual, as plain values for dashboards."""
+    fields = ["phase", "api_budget", "api_actual", "variance", "variance_pct"]
+    with out.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["estimate", "currency", *fields])
+        for x in figures["phase_budgets"]:
+            w.writerow([model["name"], model["currency"], *[("" if x[f] is None else x[f]) for f in fields]])
+
+
 # --------------------------------------------------------------------------- main
 
 
@@ -1624,12 +1747,17 @@ def main(argv: list[str] | None = None) -> int:
         if figures["epics"]:
             write_epics(model, figures, out.with_name(out.stem + ".epics.csv"))
         write_sprints(model, figures, out.with_name(out.stem + ".sprints.csv"))
+        infra = out.with_name(out.stem + ".infra_cost.csv")
+        write_infra_cost(model, infra)
+        if figures["phase_budgets"]:
+            write_phases(model, figures, out.with_name(out.stem + ".phases.csv"))
     except PermissionError:
         print(json.dumps({"status": "error", "message": f"cannot write {out}: is it open in Excel?"}))
         return 2
     model["stamp"] = {**stamp, "workbook_mtime": out.stat().st_mtime}
     model_path.write_text(json.dumps(model, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(json.dumps({"status": "ok", "workbook": str(out), "facts": str(facts), "model": str(model_path), "sheets": sheets,
+    print(json.dumps({"status": "ok", "workbook": str(out), "facts": str(facts), "infra_cost": str(infra),
+                      "model": str(model_path), "sheets": sheets,
                       "figures": figures}, indent=1))
     return 0
 
