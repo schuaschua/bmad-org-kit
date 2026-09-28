@@ -2,7 +2,7 @@
 
 A BMad module that adds the organisation layer to a BMad Method (`bmm`) project: org standards, governance sign-off, cost estimates, design documents and diagrams, and a count of what the AI-assisted delivery itself cost. Everything is produced inside the BMad flow, from the artifacts BMad already writes: the spine, spec, UX docs, epics and sprint status.
 
-Version 1.9.5 ([CHANGELOG.md](CHANGELOG.md)).
+Version 1.10.0 ([CHANGELOG.md](CHANGELOG.md)).
 
 ## What's in it
 
@@ -123,7 +123,7 @@ Diagrams and documents come only from the spine, spec and UX docs (plus the epic
 
 ## Scrooge McDuck: tokens and costs
 
-- **Token ledger.** Every Claude API call in the project's logs is counted by story or planning phase, step, activity and model. The ledger in `token_usage_folder` refreshes after every turn. Ask Scrooge what a story cost, what drives the spend, or for a one-line cost summary for a pull request.
+- **Token ledger.** Every Claude API call in the project's logs is counted by story or planning phase, step, activity and model. The ledger in `token_usage_folder` refreshes after every turn. `token_usage_summary.csv` splits each story into six categories: AI comprehension (reading / shell), AI reasoning (thinking / reporting), Writing code, Writing tests, Running tests and checks, and MCP usage (git / Jira / PR and every MCP server call). `token_usage_summary_final.csv` does the same for all stories combined. Ask Scrooge what a story cost, what drives the spend, or for a one-line cost summary for a pull request.
 - **Token budgets.** Once the epics and sprint plan exist, you set a Claude API budget in money for each epic, each sprint (optional) and each remaining phase. They're kept in `_bmad/memory/agent-scrooge/token-budgets.json`. `token_usage_summary_final.csv` and `report.md` then show budget against actual and the variance.
 - **Cost estimate.** "What will this cost to build and run?" Scrooge prices the solution from the spine, spec and epics into `<name>.xlsx`, built from `<name>.estimate.json`:
   - cloud at Azure list prices;

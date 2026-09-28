@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.10.0 — 2026-09-28
+
+### Scrooge McDuck
+
+- **Story categories renamed.** `token_usage_summary.csv` (each story) and `token_usage_summary_final.csv` (all stories combined) now split the work into:
+  1. AI comprehension (was reading/shell);
+  2. AI reasoning (was thinking/reporting);
+  3. Writing code;
+  4. Writing tests;
+  5. Running tests and checks;
+  6. MCP usage (was git/PR/Jira).
+
+  Each row's description starts with the older label.
+- **MCP usage covers every MCP server.** Previously only the Atlassian and safe-docx servers counted there; others, such as draw.io, fell into reading. The detailed `token_usage.csv` gains a `category` column beside `activity`, and a new `MCP tools` activity.
+- The one-line story cost summary for pull requests uses the new names.
+
+### Upgrading
+
+- A project's `savings.json` keyed by the old names (`reading/shell`, `git/PR/Jira` ...) still applies to the renamed rows.
+- A dashboard that reads the summary files by row label needs the new names.
+
 ## 1.9.5 — 2026-09-28
 
 ### Da Vinci
