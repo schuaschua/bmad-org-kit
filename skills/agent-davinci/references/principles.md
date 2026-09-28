@@ -1,6 +1,6 @@
 ---
 name: principles
-description: Before bmad-architecture begins, settle the architecture questions (environment, cloud, service model, Well-Architected priorities, policies, naming, tags, regions, on-premises links, AI, environments, style, migration, security, approved stack, web or mobile) with the user, asking only what the project's documents leave open, confirm a summary, and write docs/architecture/architecture.md plus one file per cloud provider; or revise them
+description: Before bmad-architecture begins, settle the architecture questions (environment, cloud, service model, Well-Architected priorities, policies, naming, tags, regions, on-premises links, AI, environments, style, migration, security, approved stack, web or mobile, analytics, AI/ML models) with the user, asking only what the project's documents leave open, confirm a summary, and write docs/architecture/architecture.md plus one file per cloud provider; or revise them
 code: AP
 added: 2026-09-28
 type: prompt
@@ -71,8 +71,10 @@ Ask in this order, one or two at a time. Where the answer is a choice, offer the
 16. **Application type:** is this a pure web application, a pure mobile application, or hybrid (both web and mobile)? If mobile or hybrid, ask two follow-ups:
     - which platforms: iOS, Android, or both;
     - native apps per platform, or one cross-platform framework (for example React Native, Flutter or .NET MAUI).
+17. **Analytics:** are we running any heavy analytics workloads (for example large reporting, data warehousing, or big batch or streaming jobs)?
+18. **AI/ML models:** are we building our own AI/ML models (training or fine-tuning), rather than only using existing ones?
 
-Skip a question that no longer applies: no on-premises environment means no question 9, and no AI in the project means no follow-ups to question 10, and a pure web application means no follow-ups to question 16.
+Skip a question that no longer applies: no on-premises environment means no question 9, and no AI in the project means no follow-ups to question 10, a pure web application means no follow-ups to question 16, and no AI at all (question 10) means no question 18.
 
 Then offer to add any further guardrails the answers suggest, such as a cost ceiling, a recovery target (RTO and RPO) or data residency. Stop when {user_name} says so.
 
@@ -93,7 +95,7 @@ Where an answer goes:
 
 | Answer | `architecture.md` | `<provider>.md` |
 | --- | --- | --- |
-| 1 environment, 4 pillar ranking, 5 policies, 10 AI, 11 environments, 12 style, 13 migration, 14 security level, 16 application type | yes | |
+| 1 environment, 4 pillar ranking, 5 policies, 10 AI, 11 environments, 12 style, 13 migration, 14 security level, 16 application type, 17 analytics, 18 AI/ML models | yes | |
 | 2 cloud platforms | the list, linking each provider file | |
 | 3 service model | the overall stance | that provider's IaaS and PaaS choices |
 | 6 naming, 7 tags | | each provider's convention and tag keys |

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.9.4 — 2026-09-28
+
+### Da Vinci
+
+- **Question 17: analytics.** Are we running any heavy analytics workloads (large reporting, data warehousing, big batch or streaming jobs)?
+- **Question 18: AI/ML models.** Are we building our own AI/ML models (training or fine-tuning), rather than only using existing ones? Skipped when the project has no AI at all (question 10).
+- Both answers go in `architecture.md`'s Context table, and neither is asked when the project's documents already answer it.
+
+### Upgrading
+
+- In a project that already has `_bmad/custom/bmad-architecture.toml`, you can merge the updated `activation_steps_prepend` wording; the older wording still works.
+
 ## 1.9.3 — 2026-09-28
 
 ### Da Vinci
