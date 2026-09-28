@@ -6,7 +6,7 @@
 
 Reads Claude Code's own session logs for the project (~/.claude/projects/<project root with every
 non-alphanumeric character as "-">/: one .jsonl per session, plus subagents/agent-<id>.jsonl and
-.meta.json per agent) and writes five files to <out-dir> (default: the org config's
+.meta.json per agent) and writes six files to <out-dir> (default: the org config's
 token_usage_folder, else <project>/docs/token_usage/):
 
   token_usage.csv                one row per work item x day x step x activity x model
@@ -15,6 +15,8 @@ token_usage_folder, else <project>/docs/token_usage/):
   report.md                      the same data as readable tables
   claude_usage.csv               tokens by type per work item x model, with first and last call time
                                  (for Claude API pricing, the project timeline and dashboards)
+  claude_usage_daily.csv         the same per day, with cost_usd at Claude API list prices when
+                                 <project>/_bmad/memory/agent-scrooge/claude-prices.json exists (claude_prices.py --save)
 
 Every API call is counted once (deduplicated by message id) and attributed three ways:
   work item  a story (a Jira key such as PROJ-18; the key comes from --key, else the org config's
@@ -509,6 +511,43 @@ def usage_rows(calls: list[dict], stories: dict[str, tuple[str, str]]) -> list[l
     return rows
 
 
+def _pricing_id(model: str) -> str:
+    """A model id as the logs write it -> the pricing page's id: 'claude-haiku-4-5-20251001' -> 'claude-haiku-4-5'."""
+    return re.sub(r"-\d{8}$", "", re.sub(r"\[.*?\]", "", model.strip().lower()))
+
+
+def load_prices(path: Path) -> dict:
+    """Claude list prices per model (USD per million tokens) as claude_prices.py --save wrote them; {} without."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("models", {})
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def daily_rows(calls: list[dict], stories: dict[str, tuple[str, str]], prices: dict) -> list[list]:
+    """Tokens and cost per day, work item and model: the day-to-day series a dashboard charts.
+
+    cost_usd is at Claude API list prices when claude-prices.json exists, else blank."""
+    totals: dict = collections.defaultdict(collections.Counter)
+    for c in calls:
+        key = (c["day"], c["kind"], c["item"], c["model"])
+        totals[key]["calls"] += 1
+        for k in ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output", "units"):
+            totals[key][k] += c[k]
+    rows = [["day", "kind", "work_item", "story_no", "title", "model", "calls", "input_tokens", "cache_write_5m_tokens",
+             "cache_write_1h_tokens", "cache_read_tokens", "output_tokens", "cost_units", "cost_usd"]]
+    for key in sorted(totals, key=lambda k: (k[0], _item_order(k[1], k[2], stories), k[3])):
+        day, kind, item, model = key
+        g = totals[key]
+        number, title = stories.get(item, ("", ""))
+        price = prices.get(_pricing_id(model))
+        usd = "" if not price else round(sum(g[k] * price[k] for k in
+                                             ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")) / 1e6, 4)
+        rows.append([day, kind, item, number, title, model, g["calls"], g["input"], g["cache_write_5m"],
+                     g["cache_write_1h"], g["cache_read"], g["output"], round(g["units"]), usd])
+    return rows
+
+
 def summary_rows(calls: list[dict], stories: dict[str, tuple[str, str]], combine_stories: bool,
                  savings: dict[str, str] | None = None) -> list[list]:
     grand = sum(c["units"] for c in calls) or 1
@@ -654,6 +693,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.verbose:
         print(f"{len(calls)} calls from {log_dir}", file=sys.stderr)
+    prices = load_prices(root / DATA_DIR / "claude-prices.json")
 
     outputs = {
         "token_usage.csv": lambda fh: csv.writer(fh).writerows(detail_rows(calls, stories)),
@@ -661,6 +701,7 @@ def main(argv: list[str] | None = None) -> int:
         "token_usage_summary_final.csv": lambda fh: csv.writer(fh).writerows(summary_rows(calls, stories, combine_stories=True, savings=savings)),
         "report.md": lambda fh: fh.write(report_markdown(calls, stories, str(log_dir))),
         "claude_usage.csv": lambda fh: csv.writer(fh).writerows(usage_rows(calls, stories)),
+        "claude_usage_daily.csv": lambda fh: csv.writer(fh).writerows(daily_rows(calls, stories, prices)),
     }
     for name, write in outputs.items():
         _write_atomic(out_dir / name, write)

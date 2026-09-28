@@ -11,11 +11,11 @@ A made-up project, so you can see what Scrooge McDuck's cost estimate and close-
 
 | File | What it is |
 | --- | --- |
-| `falcon-portal.xlsx` | The workbook: Overall (inputs, team, cost summary), Rate Card, Other Costs, Dev/Test/Prod, Claude Usage (+ Detail, Prices), Project Timeline, Sources & Gaps |
-| `falcon-portal.facts.csv` | The cost lines as plain values, for Power BI |
+| `falcon-portal.xlsx` | The workbook: Overall (inputs, delivery team, run support, cost summary), Multi-Year (build and five years: revenue, costs, net, payback), Revenue, Rate Card, Other Costs, Run Costs, Dev/Test/Prod, Claude Prices, Claude Usage (+ Detail, Daily), Project Timeline, Sources & Gaps |
+| `falcon-portal.facts.csv` | Every revenue and cost line per period (Build, Year 1..5) as plain values, for Power BI |
 | `falcon-portal.estimate.json` | The model the workbook is built from; each line cites its source |
 | `_bmad-output/` | The sample spine and spec the model cites |
-| `token_usage/` | The sample Claude usage ledger and project timeline for the close-out |
+| `token_usage/` | The sample Claude usage ledger (per work item and per day) and project timeline for the close-out |
 | `claude-prices.json` | Claude API list prices used for the Claude sheets |
 
 In a real project the rate card lives in `_bmad/memory/agent-scrooge/rate-card.json` and the close-out files come from `token_report.py` and `project_timeline.py`. Here they sit inline or in plain folders so the sample is self-contained.
@@ -28,4 +28,4 @@ From the kit's root:
 uv run skills/agent-scrooge/scripts/build_estimate.py skills/agent-scrooge/assets/examples/falcon-portal falcon-portal.estimate.json --force
 ```
 
-`--force` is needed because a git checkout changes the workbook's file date, which the builder would otherwise read as a hand edit. Change a number in the model (for example `delivery_days` or a team member's `employees`) and rebuild to see it flow through.
+`--force` is needed because a git checkout changes the workbook's file date, which the builder would otherwise read as a hand edit. Change a number in the model (for example `delivery_days`, `horizon_years` or a team member's `employees`) and rebuild to see it flow through; in Excel, change the blue input cells, such as Years of run (3 to 5).

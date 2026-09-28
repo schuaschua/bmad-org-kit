@@ -103,16 +103,21 @@ def test_shell_activity(command: str, activity: str) -> None:
     assert token_report.activity_of([{"type": "tool_use", "name": "Bash", "input": {"command": command}}]) == activity
 
 
-def test_main_writes_five_files_and_a_story_line(logs: Path, tmp_path: Path, capsys) -> None:
+def test_main_writes_six_files_and_a_story_line(logs: Path, tmp_path: Path, capsys) -> None:
     stories_file = tmp_path / "stories.json"
     stories_file.write_text(json.dumps({"stories": {k: list(v) for k, v in STORIES.items()}}))
     out = tmp_path / "out"
+    prices = tmp_path / "_bmad" / "memory" / "agent-scrooge" / "claude-prices.json"
+    prices.parent.mkdir(parents=True)
+    prices.write_text(json.dumps({"models": {"claude-sonnet-5": {"input": 2, "cache_write_5m": 2.5, "cache_write_1h": 4,
+                                                                  "cache_read": 0.2, "output": 10}}}))
     code = token_report.main([str(tmp_path), "--logs", str(logs), "-o", str(out), "--stories", str(stories_file),
                               "--story", "PROJ-18"])
     assert code == 0
     result = json.loads(capsys.readouterr().out)
     assert sorted(Path(p).name for p in result["written"]) == [
-        "claude_usage.csv", "report.md", "token_usage.csv", "token_usage_summary.csv", "token_usage_summary_final.csv"]
+        "claude_usage.csv", "claude_usage_daily.csv", "report.md", "token_usage.csv", "token_usage_summary.csv",
+        "token_usage_summary_final.csv"]
     assert result["story"]["line"].startswith("PROJ-18 (2.3): ")
     assert result["story"]["calls"] == 4  # m3, which started the build, ran on dev: ops
 
@@ -126,6 +131,11 @@ def test_main_writes_five_files_and_a_story_line(logs: Path, tmp_path: Path, cap
     story = [r for r in usage if r["work_item"] == "PROJ-18"]
     assert story and all(r["first_call"] <= r["last_call"] for r in story)
     assert story[0]["story_no"] == "2.3" and story[0]["model"] == "claude-sonnet-5"
+    daily = list(csv.DictReader((out / "claude_usage_daily.csv").open()))
+    assert sum(int(r["calls"]) for r in daily) == result["calls"]
+    assert daily == sorted(daily, key=lambda r: r["day"]) and daily[0]["day"] < daily[-1]["day"]
+    sonnet = [r for r in daily if r["model"] == "claude-sonnet-5"]
+    assert sonnet and all(float(r["cost_usd"]) > 0 for r in sonnet)
     total = int(final[-1][1])
     top_level = sum(int(r[1]) for r in final[1:-1] if " · " not in r[0])
     assert abs(top_level - total) <= len(final)  # rows are rounded one by one

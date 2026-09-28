@@ -9,6 +9,8 @@
 - **Reporting currency:** USD (the kit's default). {Change it only if the owner asks during First Breath.} Every estimate and the rate card use it.
 - **Azure pricing region:** {The region the spine deploys to (armRegionName, for example uaenorth); asked when the spine doesn't say.}
 - **Cloud price basis:** Azure retail list prices (pay-as-you-go) unless {user_name} gives a discount or reservation to apply, with its source.
+- **Actual cloud spend:** {Asked during First Breath and after the first estimate: whether Azure Cost Management or its daily exports are available for the subscription, and where the exports land. "None" once the owner says so.}
+- **Horizon:** {years of run after go-live the owner wants estimates to cover (3 to 5, default 5) and any yearly increase in run costs.}
 
 ## Workspace
 - **Token ledger:** the org config's `token_usage_folder` (default `docs/token_usage/`, gitignored).
