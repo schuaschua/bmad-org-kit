@@ -213,3 +213,35 @@ def test_budgets_without_prices_say_so(logs: Path, tmp_path: Path, capsys) -> No
     (data / "token-budgets.json").write_text(json.dumps({"phases": {"test design": 5}}))
     assert token_report.main([str(tmp_path), "--logs", str(logs), "-o", str(tmp_path / "o")]) == 0
     assert "claude_prices.py --save" in json.loads(capsys.readouterr().out)["budgets"]
+
+
+def test_summary_splits_each_story_into_the_six_categories(logs: Path) -> None:
+    rows = token_report.summary_rows(token_report.collect(logs, STORIES), STORIES, combine_stories=False)
+    story = [r for r in rows if r[0].startswith("Story 2.3 Choose a product (PROJ-18) · ")]
+    assert [r[0].split(" · ")[1] for r in story] == [
+        "AI comprehension", "AI reasoning", "Writing code", "Writing tests", "Running tests and checks", "MCP usage"]
+    assert story[0][3].startswith("reading / shell:") and story[5][3].startswith("git / Jira / PR:")
+
+
+@pytest.mark.parametrize(("tool", "category"), [
+    ("mcp__atlassian__editJiraIssue", "MCP usage"),
+    ("mcp__drawio__open_drawio_xml", "MCP usage"),
+    ("Read", "AI comprehension"),
+])
+def test_every_mcp_server_call_is_mcp_usage(tool: str, category: str) -> None:
+    activity = token_report.activity_of([{"type": "tool_use", "name": tool, "input": {}}])
+    assert token_report.SUMMARY_ACTIVITY[activity] == category
+
+
+def test_savings_under_the_old_category_names_still_apply(tmp_path: Path) -> None:
+    path = tmp_path / "savings.json"
+    path.write_text(json.dumps({"savings": {"reading/shell": "Mine.", "Total": "Also mine."}}))
+    assert token_report.load_savings(path) == {"AI comprehension": "Mine.", "Total": "Also mine."}
+
+
+def test_detail_rows_carry_the_category(logs: Path) -> None:
+    rows = token_report.detail_rows(token_report.collect(logs, STORIES), STORIES)
+    header = rows[0]
+    assert header[header.index("activity") + 1] == "category"
+    by = {(r[header.index("activity")], r[header.index("category")]) for r in rows[1:]}
+    assert {("delegating", "AI reasoning"), ("git/PR/Jira", "MCP usage"), ("writing tests", "Writing tests")} <= by

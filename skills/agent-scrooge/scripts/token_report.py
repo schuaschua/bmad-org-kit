@@ -28,7 +28,10 @@ Every API call is counted once (deduplicated by message id) and attributed three
   step       the agent's job: main session, build (orchestrating), implement, review, explore,
              context, testing, planning agent.
   activity   the tool the call used: writing code, writing tests, running tests & checks, writing
-             docs/specs, reading/shell, git/PR/Jira, delegating, thinking/reporting.
+             docs/specs, reading/shell, git/PR/Jira, MCP tools, delegating, thinking/reporting.
+  category   the six the summaries split each story into: AI comprehension (reading / shell), AI reasoning
+             (thinking / reporting, docs/specs, delegating), Writing code, Writing tests, Running tests and
+             checks, and MCP usage (git / Jira / PR and every MCP server call).
 
 Cost units weight each token type against one fresh input token (cache read 0.1, 5-minute cache
 write 1.25, 1-hour cache write 2, output 5): relative, not dollars, every model alike.
@@ -134,21 +137,27 @@ PHASE_NOTES = {
     "merges, promotions & deploys": "Merging PRs, promoting dev to main, deploying and checking deploys",
     "other": "Work that couldn't be attributed to a story or phase",
 }
-# Summary rows per story: six activities; docs/specs and delegating fold into thinking/reporting.
+# The six categories every story (and all stories combined) is split into in the summaries. Each detailed
+# activity (token_usage.csv) falls into one; docs/specs and delegating count as AI reasoning.
+AI_COMPREHENSION, AI_REASONING, WRITING_CODE = "AI comprehension", "AI reasoning", "Writing code"
+WRITING_TESTS, RUNNING_TESTS, MCP_USAGE = "Writing tests", "Running tests and checks", "MCP usage"
 SUMMARY_ACTIVITY = {
-    "reading/shell": "reading/shell", "thinking/reporting": "thinking/reporting",
-    "writing docs/specs": "thinking/reporting", "delegating": "thinking/reporting",
-    "writing code": "writing code", "writing tests": "writing tests",
-    "running tests & checks": "running tests & checks", "git/PR/Jira": "git/PR/Jira",
+    "reading/shell": AI_COMPREHENSION, "thinking/reporting": AI_REASONING,
+    "writing docs/specs": AI_REASONING, "delegating": AI_REASONING,
+    "writing code": WRITING_CODE, "writing tests": WRITING_TESTS,
+    "running tests & checks": RUNNING_TESTS, "git/PR/Jira": MCP_USAGE, "MCP tools": MCP_USAGE,
 }
 ACTIVITY_NOTES = {
-    "reading/shell": "Reading files, searching and shell commands; each call re-reads the agent's context",
-    "thinking/reporting": "Planning, reasoning and reports with no tool; includes writing specs/sprint status and handing work to agents",
-    "writing code": "Edits to application and infrastructure files",
-    "writing tests": "Edits to test files (unit, API, end-to-end)",
-    "running tests & checks": "Check scripts, test runners (pytest, vitest, Playwright), lint and type checks",
-    "git/PR/Jira": "Branches, commits, rebases, pull requests and Jira updates",
+    AI_COMPREHENSION: "reading / shell: reading files, searching and shell commands; each call re-reads the agent's context",
+    AI_REASONING: "thinking / reporting: planning, reasoning and reports with no tool; includes writing specs/sprint status and handing work to agents",
+    WRITING_CODE: "Edits to application and infrastructure files",
+    WRITING_TESTS: "Edits to test files (unit, API, end-to-end)",
+    RUNNING_TESTS: "Check scripts, test runners (pytest, vitest, Playwright), lint and type checks",
+    MCP_USAGE: "git / Jira / PR: branches, commits, rebases, pull requests, Jira updates and every MCP server call",
 }
+# Savings keyed by the categories' earlier names (before 1.10.0) still apply to the renamed rows.
+OLD_CATEGORY = {"reading/shell": AI_COMPREHENSION, "thinking/reporting": AI_REASONING, "writing code": WRITING_CODE,
+                "writing tests": WRITING_TESTS, "running tests & checks": RUNNING_TESTS, "git/PR/Jira": MCP_USAGE}
 
 # The final summary's suggested_cost_saving column, keyed by row (phase, activity, or row label).
 SAVINGS = {
@@ -167,12 +176,12 @@ SAVINGS = {
     "token reporting": "The hook refreshes the files for free; ask Scrooge only when you want an explanation.",
     "epic": "An epic over its Claude API budget: look for reruns and long review loops in its stories before the next epic, and set the next budget from this actual.",
     "all stories": "The biggest lever is shorter agent contexts: every call re-reads everything the agent has seen, so start each step in a fresh agent with only the story brief.",
-    "reading/shell": "Start each step (implement, review, fix) in a fresh agent that gets a one-page brief, not the full planning documents; use a small model for code searches; avoid re-reading large files.",
-    "thinking/reporting": "Run the orchestrating build agent on a cheaper model, or let the main session run the steps directly; ask agents for short final reports.",
-    "writing code": "Core work; don't cut it.",
-    "writing tests": "Core work; don't cut it.",
-    "running tests & checks": "Run only the checks the change touches while iterating and the full run once before pushing; fix flaky tests so they stop causing reruns.",
-    "git/PR/Jira": "Keep stories one at a time (parallel lanes pay extra in rebases); write PR bodies and Jira comments in one pass at the end, with a small model.",
+    AI_COMPREHENSION: "Start each step (implement, review, fix) in a fresh agent that gets a one-page brief, not the full planning documents; use a small model for code searches; avoid re-reading large files.",
+    AI_REASONING: "Run the orchestrating build agent on a cheaper model, or let the main session run the steps directly; ask agents for short final reports.",
+    WRITING_CODE: "Core work; don't cut it.",
+    WRITING_TESTS: "Core work; don't cut it.",
+    RUNNING_TESTS: "Run only the checks the change touches while iterating and the full run once before pushing; fix flaky tests so they stop causing reruns.",
+    MCP_USAGE: "Keep stories one at a time (parallel lanes pay extra in rebases); write PR bodies and Jira comments in one pass at the end, with a small model; call MCP servers for what only they can do.",
     "Merges, promotions & deploys": "Batch several stories per promotion; watch deploys with a background command, which costs no tokens.",
     "Other": "Too small to act on.",
     "Total": "Largest savings are usually: shorter agent contexts (reading), a cheaper orchestrator, fewer planning rework rounds, and no parallel story lanes.",
@@ -208,7 +217,7 @@ def load_savings(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
     with open(path) as fh:
-        return dict(json.load(fh)["savings"])
+        return {OLD_CATEGORY.get(k, k): v for k, v in json.load(fh)["savings"].items()}
 
 
 def org_config(root: Path) -> dict:
@@ -299,8 +308,8 @@ def activity_of(content: list) -> str:
         return _file_activity(str(inp.get("file_path") or inp.get("notebook_path") or ""))
     if name in ("Agent", "SendMessage", "Skill", "Workflow"):
         return "delegating"
-    if name.startswith(("mcp__atlassian", "mcp__safe-docx")):
-        return "git/PR/Jira"
+    if name.startswith("mcp__"):
+        return "MCP tools"
     if name == "Bash":
         cmd = str(inp.get("command", ""))
         for pattern in WRITE_TARGET_RES:
@@ -484,13 +493,14 @@ def detail_rows(calls: list[dict], stories: dict[str, tuple[str, str]]) -> list[
     grand = sum(c["units"] for c in calls) or 1
     per_item = _sum(calls, lambda c: (c["kind"], c["item"]))
     grouped = _sum(calls, lambda c: (c["kind"], c["item"], c["day"], c["step"], c["activity"], c["model"]))
-    rows = [["kind", "work_item", "story_no", "title", "day", "step", "activity", "model", "calls", "cost_units",
+    rows = [["kind", "work_item", "story_no", "title", "day", "step", "activity", "category", "model", "calls", "cost_units",
              "pct_of_item", "pct_of_total", "output_tokens", "cache_read_tokens", "cache_write_tokens",
              "fresh_input_tokens"]]
     ordered = sorted(grouped.items(), key=lambda kv: (_item_order(kv[0][0], kv[0][1], stories), kv[0][2], -kv[1]["units"]))
     for (kind, item, day, step, activity, model), v in ordered:
         number, title = stories.get(item, ("", ""))
-        rows.append([kind, item, number, title, day, step, activity, model, v["calls"], round(v["units"]),
+        rows.append([kind, item, number, title, day, step, activity, SUMMARY_ACTIVITY.get(activity, AI_REASONING), model,
+                     v["calls"], round(v["units"]),
                      f"{v['units'] / (per_item[(kind, item)]['units'] or 1):.1%}", f"{v['units'] / grand:.2%}",
                      v["output"], v["cache_read"], v["cache_write_5m"] + v["cache_write_1h"], v["input"]])
     return rows
@@ -614,7 +624,7 @@ def summary_rows(calls: list[dict], stories: dict[str, tuple[str, str]], combine
         counter = by_item[(call["kind"], call["item"])]
         counter["total"] += call["units"]
         counter["calls"] += 1
-        counter[SUMMARY_ACTIVITY.get(call["activity"], "thinking/reporting")] += call["units"]
+        counter[SUMMARY_ACTIVITY.get(call["activity"], AI_REASONING)] += call["units"]
         if prices:
             usd_by_item[(call["kind"], call["item"])] += call_usd(call, prices) or 0.0
 
@@ -756,7 +766,7 @@ def story_summary(calls: list[dict], key: str, stories: dict[str, tuple[str, str
     grand = sum(c["units"] for c in calls) or 1
     total = sum(c["units"] for c in mine)
     steps = _sum(mine, lambda c: c["step"])
-    activities = _sum(mine, lambda c: SUMMARY_ACTIVITY.get(c["activity"], "thinking/reporting"))
+    activities = _sum(mine, lambda c: SUMMARY_ACTIVITY.get(c["activity"], AI_REASONING))
 
     def pct(units: float) -> float:
         return round(100 * units / total, 1) if total else 0.0
@@ -765,10 +775,10 @@ def story_summary(calls: list[dict], key: str, stories: dict[str, tuple[str, str
     activity_pct = {a: pct(activities[a]["units"]) for a in ACTIVITY_NOTES}
     number = stories.get(key, ("", ""))[0]
     top_steps = ", ".join(f"{s} {p:.0f}%" for s, p in list(step_pct.items())[:3])
-    code_and_tests = activity_pct["writing code"] + activity_pct["writing tests"]
+    code_and_tests = activity_pct[WRITING_CODE] + activity_pct[WRITING_TESTS]
     line = (f"{key}{f' ({number})' if number else ''}: {total / 1e6:.1f}M cost units ({100 * total / grand:.1f}% of the "
             f"project so far), {len(mine)} API calls. Steps: {top_steps}. Writing code and tests {code_and_tests:.0f}%, "
-            f"running tests & checks {activity_pct['running tests & checks']:.0f}%, reading {activity_pct['reading/shell']:.0f}%.")
+            f"running tests and checks {activity_pct[RUNNING_TESTS]:.0f}%, AI comprehension {activity_pct[AI_COMPREHENSION]:.0f}%.")
     return {"key": key, "story_no": number, "title": stories.get(key, ("", ""))[1], "cost_units": round(total),
             "calls": len(mine), "share_of_all_pct": round(100 * total / grand, 2), "steps_pct": step_pct,
             "activities_pct": activity_pct, "line": line}
