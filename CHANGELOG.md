@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.12.1 — 2026-09-29
+
+- **Org Kit 1.x requires BMad 6.12.** BMad 6.13 replaces `bmad-create-epics-and-stories` and `bmad-sprint-planning` with `bmad-ticket` and moves the planning documents out of `_bmad-output/planning-artifacts`. The kit's overrides and agents rely on both, so don't install 1.x on BMad 6.13. Org Kit 2.0 will support BMad 6.13.
+
 ## 1.12.0 — 2026-09-29
 
 ### Scrooge McDuck
