@@ -6,7 +6,7 @@
 
 Reads Claude Code's own session logs for the project (~/.claude/projects/<project root with every
 non-alphanumeric character as "-">/: one .jsonl per session, plus subagents/agent-<id>.jsonl and
-.meta.json per agent) and writes six files to <out-dir> (default: the org config's
+.meta.json per agent) and writes seven files to <out-dir> (default: the org config's
 token_usage_folder, else <project>/docs/costing/token_usage/):
 
   token_usage.csv                one row per work item x day x step x activity x model
@@ -18,6 +18,10 @@ token_usage_folder, else <project>/docs/costing/token_usage/):
                                  (for Claude API pricing, the project timeline and dashboards)
   claude_usage_daily.csv         the same per day, with cost_usd at Claude API list prices when
                                  <project>/_bmad/memory/agent-scrooge/claude-prices.json exists (claude_prices.py --save)
+  agent_runs.csv                 one row per subagent: its work item, parent (main session or agent), launched_by
+                                 (Agent, Workflow, or unknown), run_id (the launching call; a Workflow's agents
+                                 share one), type, step, depth, first and last call, minutes, how many other agents
+                                 of the session overlapped it (parallel_with), calls, cost units and cost_usd
 
 Every API call is counted once (deduplicated by message id) and attributed three ways:
   work item  a story (a Jira key such as PROJ-18; the key comes from --key, else the org config's
@@ -267,6 +271,9 @@ def story_from_text(text: str | None, number_to_key: dict[str, str], key_re: re.
     return None
 
 
+SPAWN_TOOLS = ("Agent", "Workflow")  # tools that start subagents
+
+
 def phase_from_description(text: str | None) -> str | None:
     lowered = (text or "").lower()
     return next((phase for pattern, phase in DESCRIPTION_PHASE if re.search(pattern, lowered)), None)
@@ -357,6 +364,7 @@ def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | Non
     sub_logs = sorted(glob.glob(str(log_dir / "*" / "subagents" / "*.jsonl")),
                       key=lambda p: metas.get(os.path.basename(p)[6:-6], {}).get("spawnDepth") or 9)
     spawn_context: dict[str, tuple[str | None, str | None]] = {}
+    launches: dict[str, dict] = {}  # Agent or Workflow tool_use id -> the tool and who called it
     calls: dict[str, dict] = {}
 
     for path in main_logs + sub_logs:
@@ -365,7 +373,13 @@ def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | Non
         description = meta.get("description") if agent_id else None
         step = step_of(description, meta.get("agentType"))
         agent_story, agent_phase = None, None
+        agent_info = None
         if agent_id:
+            launch = launches.get(meta.get("toolUseId"), {})
+            agent_info = {"session": Path(path).parent.parent.name, "parent": launch.get("by", ""),
+                          "launched_by": launch.get("tool", "unknown"), "run": meta.get("toolUseId") or "",
+                          "agent_type": meta.get("agentType") or "", "depth": meta.get("spawnDepth") or "",
+                          "description": description or ""}
             inherited_story, inherited_phase = spawn_context.get(meta.get("toolUseId"), (None, None))
             agent_story = story_from_text(description, number_to_key, key_re) or inherited_story
             agent_phase = phase_from_description(description) or inherited_phase
@@ -416,8 +430,9 @@ def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | Non
                 story = agent_story or branch_story
                 phase = agent_phase or skill_phase
                 for c in content:
-                    if c.get("type") == "tool_use" and c.get("name") == "Agent":
+                    if c.get("type") == "tool_use" and c.get("name") in SPAWN_TOOLS:
                         spawn_context[c["id"]] = (story, phase)
+                        launches[c["id"]] = {"tool": c["name"], "by": f"agent-{agent_id}" if agent_id else "main session"}
 
                 usage, msg_id = message.get("usage"), message.get("id")
                 if not usage or not msg_id or (since and (stamp or "") < since):
@@ -433,7 +448,8 @@ def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | Non
                 # One call can span several log lines (one per content block); keep the largest usage.
                 entry = calls.setdefault(msg_id, {"usage": {}, "content": [], "model": message.get("model") or "",
                                                   "item": item, "kind": item_kind, "step": step,
-                                                  "day": (stamp or "")[:10], "stamp": stamp or ""})
+                                                  "day": (stamp or "")[:10], "stamp": stamp or "",
+                                                  "agent": agent_id or "", "agent_info": agent_info})
                 for key, value in usage.items():
                     if isinstance(value, int):
                         entry["usage"][key] = max(entry["usage"].get(key, 0), value)
@@ -446,7 +462,7 @@ def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | Non
     for entry in calls.values():
         parts = _weigh(entry["usage"])
         result.append({"kind": entry["kind"], "item": entry["item"], "step": entry["step"], "day": entry["day"],
-                       "stamp": entry.get("stamp", ""),
+                       "stamp": entry.get("stamp", ""), "agent": entry["agent"], "agent_info": entry["agent_info"],
                        "model": entry["model"], "activity": activity_of(entry["content"]), **parts})
     return result
 
@@ -564,6 +580,65 @@ def daily_rows(calls: list[dict], stories: dict[str, tuple[str, str]], prices: d
         rows.append([day, kind, item, number, title, model, g["calls"], g["input"], g["cache_write_5m"],
                      g["cache_write_1h"], g["cache_read"], g["output"], round(g["units"]), usd])
     return rows
+
+
+def agent_runs(calls: list[dict], prices: dict) -> list[dict]:
+    """One entry per subagent: who started it and how, its work item, span, calls and cost."""
+    by_agent: dict[str, list[dict]] = collections.defaultdict(list)
+    for c in calls:
+        if c.get("agent"):
+            by_agent[c["agent"]].append(c)
+    runs = []
+    for agent_id, mine in by_agent.items():
+        units_by_item = collections.Counter()
+        for c in mine:
+            units_by_item[(c["kind"], c["item"])] += c["units"]
+        stamps = sorted(c["stamp"] for c in mine if c["stamp"])
+        usd = [call_usd(c, prices) for c in mine]
+        runs.append({**mine[0]["agent_info"], "agent_id": agent_id, "step": mine[0]["step"],
+                     "kind_item": units_by_item.most_common(1)[0][0],  # an agent can cross a branch; take its main item
+                     "models": ";".join(sorted({c["model"] for c in mine})),
+                     "first_call": stamps[0] if stamps else "", "last_call": stamps[-1] if stamps else "",
+                     "calls": len(mine), "units": sum(c["units"] for c in mine),
+                     "usd": None if not prices or None in usd else sum(usd)})
+    for run in runs:  # other agents of the same session running at the same time
+        run["parallel_with"] = sum(1 for other in runs if other is not run and other["session"] == run["session"]
+                                   and run["first_call"] and other["first_call"]
+                                   and other["first_call"] <= run["last_call"] and run["first_call"] <= other["last_call"])
+    return runs
+
+
+def _minutes(first: str, last: str) -> float | str:
+    start, end = _parse_time(first), _parse_time(last)
+    return round((end - start).total_seconds() / 60, 1) if start and end else ""
+
+
+def agent_run_rows(calls: list[dict], stories: dict[str, tuple[str, str]], prices: dict) -> list[list]:
+    """agent_runs.csv: one row per subagent, so orchestration (who started whom, with Agent or Workflow,
+    how many at once) can be read per story or phase. Calls in the main session are not agents."""
+    rows = [["kind", "work_item", "story_no", "title", "session", "agent_id", "parent", "launched_by", "run_id",
+             "agent_type", "description", "step", "depth", "models", "first_call", "last_call", "minutes",
+             "parallel_with", "calls", "cost_units", "cost_usd"]]
+    runs = agent_runs(calls, prices)
+    for r in sorted(runs, key=lambda r: (_item_order(*r["kind_item"], stories), r["first_call"], r["agent_id"])):
+        kind, item = r["kind_item"]
+        number, title = stories.get(item, ("", ""))
+        rows.append([kind, item, number, title, r["session"], r["agent_id"], r["parent"], r["launched_by"], r["run"],
+                     r["agent_type"], r["description"], r["step"], r["depth"], r["models"], r["first_call"],
+                     r["last_call"], _minutes(r["first_call"], r["last_call"]), r["parallel_with"], r["calls"],
+                     round(r["units"]), "" if r["usd"] is None else round(r["usd"], 4)])
+    return rows
+
+
+def _peak_parallel(runs: list[dict]) -> int:
+    """The most agents running at once (a sweep over their first-to-last-call spans)."""
+    events = sorted([(r["first_call"], 0) for r in runs if r["first_call"]] +
+                    [(r["last_call"], 1) for r in runs if r["first_call"]])  # starts sort before ends at a tie
+    peak = now = 0
+    for _, is_end in events:
+        now += -1 if is_end else 1
+        peak = max(peak, now)
+    return peak
 
 
 def load_budgets(path: Path) -> dict:
@@ -757,6 +832,25 @@ def report_markdown(calls: list[dict], stories: dict[str, tuple[str, str]], sour
     lines += table("By work item and step", "work item · step", lambda c: (c["kind"], c["item"], c["step"]))
     lines += table("By work item and activity", "work item · activity", lambda c: (c["kind"], c["item"], c["activity"]))
     lines += table("By model", "model", lambda c: c["model"])
+    runs = agent_runs(calls, {})
+    if runs:
+        lines += ["## Agents and orchestration", "",
+                  "Subagents per work item (one row each in agent_runs.csv). Peak = the most running at once; "
+                  "share = the item's cost units spent inside subagents rather than the main session.", "",
+                  "| work item | agents | Agent | Workflow | runs | peak at once | deepest | share in agents |",
+                  "|---|---|---|---|---|---|---|---|"]
+        item_units = _sum(calls, lambda c: (c["kind"], c["item"]))
+        by_item: dict = collections.defaultdict(list)
+        for r in runs:
+            by_item[r["kind_item"]].append(r)
+        for key in sorted(by_item, key=lambda k: _item_order(*k, stories)):
+            mine = by_item[key]
+            share = sum(r["units"] for r in mine) / (item_units[key]["units"] or 1)
+            launched = collections.Counter(r["launched_by"] for r in mine)
+            depths = [r["depth"] for r in mine if isinstance(r["depth"], int)]
+            lines.append(f"| {label(key)} | {len(mine)} | {launched['Agent']} | {launched['Workflow']} | "
+                         f"{len({r['run'] for r in mine})} | {_peak_parallel(mine)} | {max(depths, default='')} | {share:.0%} |")
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -825,6 +919,7 @@ def main(argv: list[str] | None = None) -> int:
         "report.md": lambda fh: fh.write(report_markdown(calls, stories, str(log_dir), budget_rows(calls, stories, prices, budgets))),
         "claude_usage.csv": lambda fh: csv.writer(fh).writerows(usage_rows(calls, stories)),
         "claude_usage_daily.csv": lambda fh: csv.writer(fh).writerows(daily_rows(calls, stories, prices)),
+        "agent_runs.csv": lambda fh: csv.writer(fh).writerows(agent_run_rows(calls, stories, prices)),
     }
     for name, write in outputs.items():
         _write_atomic(out_dir / name, write)
