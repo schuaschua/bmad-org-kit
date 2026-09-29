@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.11.0 — 2026-09-29
+
+### Scrooge McDuck
+
+- **Orchestration is recorded.** The token ledger gains `agent_runs.csv`, with one row per subagent:
+  - its work item and step;
+  - its parent (the main session or another agent);
+  - `launched_by`: `Agent`, `Workflow`, or `unknown` when the launching call isn't in the logs;
+  - `run_id`, the launching call (all agents of one workflow share it);
+  - agent type, spawn depth, first and last call, and minutes;
+  - `parallel_with`: how many other agents of the same session overlapped it;
+  - calls, cost units and `cost_usd`.
+- `report.md` gains an **Agents and orchestration** table per work item: the number of agents, how many each of `Agent` and `Workflow` started, the number of runs, the most running at once, the deepest nesting, and the share of the item's cost spent inside agents.
+- Agents started by a `Workflow` now inherit the story or planning phase of the session that ran it, as `Agent`-started ones already did.
+
 ## 1.10.0 — 2026-09-28
 
 ### Scrooge McDuck

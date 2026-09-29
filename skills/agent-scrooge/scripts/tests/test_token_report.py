@@ -103,7 +103,7 @@ def test_shell_activity(command: str, activity: str) -> None:
     assert token_report.activity_of([{"type": "tool_use", "name": "Bash", "input": {"command": command}}]) == activity
 
 
-def test_main_writes_six_files_and_a_story_line(logs: Path, tmp_path: Path, capsys) -> None:
+def test_main_writes_seven_files_and_a_story_line(logs: Path, tmp_path: Path, capsys) -> None:
     stories_file = tmp_path / "stories.json"
     stories_file.write_text(json.dumps({"stories": {k: list(v) for k, v in STORIES.items()}}))
     out = tmp_path / "out"
@@ -116,8 +116,8 @@ def test_main_writes_six_files_and_a_story_line(logs: Path, tmp_path: Path, caps
     assert code == 0
     result = json.loads(capsys.readouterr().out)
     assert sorted(Path(p).name for p in result["written"]) == [
-        "claude_usage.csv", "claude_usage_daily.csv", "report.md", "token_usage.csv", "token_usage_summary.csv",
-        "token_usage_summary_final.csv"]
+        "agent_runs.csv", "claude_usage.csv", "claude_usage_daily.csv", "report.md", "token_usage.csv",
+        "token_usage_summary.csv", "token_usage_summary_final.csv"]
     assert result["story"]["line"].startswith("PROJ-18 (2.3): ")
     assert result["story"]["calls"] == 4  # m3, which started the build, ran on dev: ops
 
@@ -245,3 +245,29 @@ def test_detail_rows_carry_the_category(logs: Path) -> None:
     assert header[header.index("activity") + 1] == "category"
     by = {(r[header.index("activity")], r[header.index("category")]) for r in rows[1:]}
     assert {("delegating", "AI reasoning"), ("git/PR/Jira", "MCP usage"), ("writing tests", "Writing tests")} <= by
+
+
+def test_agent_runs_record_who_started_each_agent_and_how(logs: Path) -> None:
+    # A second session runs a workflow whose two agents overlap in time.
+    _write_jsonl(logs / "s2.jsonl", [
+        _assistant("w0", [("Workflow", {"script": "..."})], branch="PROJ-19-y", stamp="2026-09-28T10:00:00Z")])
+    agents = logs / "s2" / "subagents"
+    for agent_id, first, last in (("w1", "10:01", "10:20"), ("w2", "10:05", "10:30")):
+        _write_jsonl(agents / f"agent-{agent_id}.jsonl", [
+            _assistant(f"{agent_id}a", branch="PROJ-19-y", stamp=f"2026-09-28T{first}:00Z"),
+            _assistant(f"{agent_id}b", branch="PROJ-19-y", stamp=f"2026-09-28T{last}:00Z")])
+        (agents / f"agent-{agent_id}.meta.json").write_text(json.dumps(
+            {"description": f"review:{agent_id}", "toolUseId": "tu-w0-0", "spawnDepth": 1, "agentType": "general-purpose"}))
+    calls = token_report.collect(logs, STORIES)
+    rows = token_report.agent_run_rows(calls, STORIES, {})
+    runs = {r[5]: dict(zip(rows[0], r)) for r in rows[1:]}
+    assert set(runs) == {"b1", "i1", "r1", "w1", "w2"}  # main-session calls are not agents
+    assert (runs["b1"]["parent"], runs["b1"]["launched_by"]) == ("main session", "Agent")
+    assert (runs["i1"]["parent"], runs["i1"]["launched_by"], runs["i1"]["depth"]) == ("agent-b1", "Agent", 2)
+    assert runs["r1"]["launched_by"] == "unknown"  # its launching call is not in the logs
+    assert runs["w1"]["launched_by"] == runs["w2"]["launched_by"] == "Workflow"
+    assert runs["w1"]["run_id"] == runs["w2"]["run_id"] == "tu-w0-0"
+    assert runs["w1"]["work_item"] == "PROJ-19" and runs["w1"]["minutes"] == 19.0
+    assert runs["w1"]["parallel_with"] == runs["w2"]["parallel_with"] == 1
+    report = token_report.report_markdown(calls, STORIES, "logs")
+    assert "| Story 3.1 Check the proposal (PROJ-19) | 3 | 0 | 2 | 2 | 2 | 1 |" in report
