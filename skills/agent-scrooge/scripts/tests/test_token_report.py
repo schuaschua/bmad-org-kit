@@ -271,3 +271,73 @@ def test_agent_runs_record_who_started_each_agent_and_how(logs: Path) -> None:
     assert runs["w1"]["parallel_with"] == runs["w2"]["parallel_with"] == 1
     report = token_report.report_markdown(calls, STORIES, "logs")
     assert "| Story 3.1 Check the proposal (PROJ-19) | 3 | 0 | 2 | 2 | 2 | 1 |" in report
+
+
+def _teammate_logs(root: Path) -> Path:
+    """A teammate's log folder: one call of their own and one (m1) that is also in the shared fixture."""
+    _write_jsonl(root / "t1.jsonl", [
+        _assistant("t1", branch="PROJ-19-z", stamp="2026-09-29T09:00:00Z", output=100),
+        _assistant("m1", branch="HEAD", stamp="2026-09-25T01:01:00Z")])
+    return root
+
+
+def test_several_people_are_counted_once_each_with_a_person_column(logs: Path, tmp_path: Path, capsys) -> None:
+    mate = _teammate_logs(tmp_path / "mate-logs")
+    out = tmp_path / "out"
+    assert token_report.main([str(tmp_path), "--logs", f"Ada={logs}", "--logs", f"Bo={mate}", "-o", str(out),
+                              "--key", "PROJ"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["calls"] == 10  # the fixture's nine plus t1; m1 appears in both folders but counts once
+    assert set(result["people"]) == {"Ada", "Bo"}
+    assert [s["person"] for s in result["logs"]] == ["Ada", "Bo"]
+    for name in ("token_usage.csv", "claude_usage.csv", "claude_usage_daily.csv", "agent_runs.csv"):
+        rows = list(csv.DictReader((out / name).open()))
+        assert rows and all(r["person"] in ("Ada", "Bo") for r in rows), name
+    usage = list(csv.DictReader((out / "claude_usage.csv").open()))
+    assert {r["person"] for r in usage if r["work_item"] == "PROJ-18"} == {"Ada"}
+    assert {r["person"] for r in usage if r["work_item"] == "PROJ-19"} == {"Bo"}
+    assert {r["person"] for r in usage if r["work_item"] == "brainstorming"} == {"Ada"}  # the first folder holding m1
+    report = (out / "report.md").read_text()
+    assert "## By person" in report and "## By work item and person" in report
+
+
+def test_one_person_gets_no_person_tables(logs: Path, tmp_path: Path, capsys) -> None:
+    assert token_report.main([str(tmp_path), "--logs", str(logs), "--as", "Ada", "-o", str(tmp_path / "o")]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert "people" not in result and result["logs"][0]["person"] == "Ada"
+    assert "## By person" not in (tmp_path / "o" / "report.md").read_text()
+
+
+def test_export_copies_only_new_or_changed_files(logs: Path, tmp_path: Path, capsys) -> None:
+    team = tmp_path / "team"
+    assert token_report.main([str(tmp_path), "--logs", str(logs), "--as", "Ada/Lovelace", "--export", str(team)]) == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first["copied"] == 7 and first["unchanged"] == 0  # one session, three agents and their metadata
+    assert (team / "Ada-Lovelace" / "s1" / "subagents" / "agent-b1.meta.json").is_file()
+    assert token_report.main([str(tmp_path), "--logs", str(logs), "--as", "Ada/Lovelace", "--export", str(team)]) == 0
+    assert json.loads(capsys.readouterr().out)["copied"] == 0
+
+
+def test_export_needs_a_folder(logs: Path, tmp_path: Path, capsys) -> None:
+    assert token_report.main([str(tmp_path), "--logs", str(logs), "--export"]) == 2
+    assert "team_logs_folder" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_team_folder_from_the_personal_config_adds_everyone_but_your_own_export(logs: Path, tmp_path: Path,
+                                                                                capsys) -> None:
+    project, team = tmp_path / "project", tmp_path / "team"
+    _teammate_logs(team / "Bo")
+    (team / "Ada" / "stale.jsonl").parent.mkdir(parents=True)
+    (team / "Ada" / "stale.jsonl").write_text(json.dumps(_assistant("old", stamp="2026-01-01T00:00:00Z")) + "\n")
+    custom = project / "_bmad" / "custom"
+    custom.mkdir(parents=True)
+    (custom / "config.user.toml").write_text(f'[modules.org]\nteam_logs_folder = "{team.as_posix()}"\n')
+    assert token_report.main([str(project), "--logs", str(logs), "--as", "Ada", "-o", str(tmp_path / "o")]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert [s["person"] for s in result["logs"]] == ["Ada", "Bo"]  # team/Ada is Ada's own export: skipped
+    assert result["calls"] == 10
+
+
+def test_missing_team_folder_is_an_error(logs: Path, tmp_path: Path, capsys) -> None:
+    assert token_report.main([str(tmp_path), "--logs", str(logs), "--team", str(tmp_path / "nope")]) == 2
+    assert "team logs folder" in json.loads(capsys.readouterr().out)["error"]

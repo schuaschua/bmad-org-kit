@@ -40,8 +40,21 @@ Every API call is counted once (deduplicated by message id) and attributed three
 Cost units weight each token type against one fresh input token (cache read 0.1, 5-minute cache
 write 1.25, 1-hour cache write 2, output 5): relative, not dollars, every model alike.
 
-Prints JSON to stdout: the files written, call and unit totals, and with --story KEY that story's
-cost by step and activity plus a one-line summary for its pull request and Jira comment.
+Every row of token_usage.csv, claude_usage.csv, claude_usage_daily.csv and agent_runs.csv ends with a person
+column: whose Claude Code logs the calls came from. Your own logs are named after your git user.name.
+
+Teams: each person's logs live in their own ~/.claude, so one person's ledger shows only their own sessions.
+To see the whole team, everyone exports their logs to a shared folder (a synced drive, not the repo: the
+logs hold whole conversations) and the ledger reads them all:
+  --export [DIR]   copy your project log folder to DIR/<your name>/ (only new or changed files) and stop
+  --team DIR       read your own logs plus every DIR/<person>/ folder in it
+Both default to team_logs_folder in the org config; set it in _bmad/custom/config.user.toml under
+[modules.org], since the shared folder's path differs per machine. The background refresh hooks then
+include the team's exported logs too. A call exported by two people is still counted once.
+
+Prints JSON to stdout: the files written, call and unit totals, the log folders read and, for more than
+one person, the cost units per person; with --story KEY, that story's cost by step and activity plus a
+one-line summary for its pull request and Jira comment.
 Project data (optional, kept out of the installed skill so updates never overwrite it), in
 <project>/_bmad/memory/agent-scrooge/:
   stories.json   {"stories": {"PROJ-18": ["2.3", "Choose a product"], ...}}: story numbers and titles
@@ -56,12 +69,14 @@ Exit codes: 0 ok, 2 error (no log folder, unreadable input).
 from __future__ import annotations
 
 import argparse
+import getpass
 import collections
 import csv
 import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -259,6 +274,62 @@ def log_dir_for(root: Path) -> Path:
     return Path.home() / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(root))
 
 
+def whoami(root: Path) -> str:
+    """Your name for the person column and your export folder: git user.name, else the login name."""
+    try:
+        name = subprocess.run(["git", "-C", str(root), "config", "user.name"],
+                              capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        name = ""
+    if not name:
+        try:
+            name = getpass.getuser()
+        except (OSError, KeyError):
+            name = ""
+    return name or "me"
+
+
+def folder_name(name: str) -> str:
+    """A person's name as a folder name on any OS."""
+    return re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "-", name).strip(" .") or "unknown"
+
+
+def _log_files(log_dir: Path) -> list[Path]:
+    """The files the ledger reads from one log folder: session logs, and each session's agents and their metadata."""
+    return [Path(p) for p in sorted(glob.glob(str(log_dir / "*.jsonl")) + glob.glob(str(log_dir / "*" / "subagents" / "*.jsonl"))
+                                    + glob.glob(str(log_dir / "*" / "subagents" / "*.meta.json")))]
+
+
+def export_logs(log_dir: Path, team_dir: Path, name: str) -> dict:
+    """Copy one log folder into team_dir/<name>/, skipping files already copied and unchanged since."""
+    dest = team_dir / folder_name(name)
+    copied = unchanged = 0
+    for src in _log_files(log_dir):
+        target = dest / src.relative_to(log_dir)
+        stat = src.stat()
+        if target.is_file() and target.stat().st_size == stat.st_size and target.stat().st_mtime >= stat.st_mtime:
+            unchanged += 1
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_name(f".{target.name}.tmp")
+        shutil.copy2(src, tmp)
+        os.replace(tmp, target)  # a teammate's refresh never reads half a file
+        copied += 1
+    return {"exported_to": str(dest), "copied": copied, "unchanged": unchanged}
+
+
+def parse_logs_arg(spec: str) -> tuple[str, Path]:
+    """--logs [NAME=]FOLDER -> (name or "", folder); a folder whose own name holds "=" is taken whole."""
+    name, sep, path = spec.partition("=")
+    return (name, Path(path)) if sep and name and not Path(spec).exists() else ("", Path(spec))
+
+
+def team_sources(team_dir: Path, skip: str | None = None) -> list[tuple[str, Path]]:
+    """(person, log folder) for every person's folder in a team folder, except the one named skip."""
+    return [(p.name, p) for p in sorted(team_dir.iterdir())
+            if p.is_dir() and not p.name.startswith(".") and p.name != skip]
+
+
 def story_from_text(text: str | None, number_to_key: dict[str, str], key_re: re.Pattern | None = None) -> str | None:
     if not text:
         return None
@@ -348,26 +419,32 @@ def _weigh(usage: dict) -> dict:
     return parts
 
 
-def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | None = None,
+def collect(log_dirs: Path | list[tuple[str, Path]], stories: dict[str, tuple[str, str]], since: str | None = None,
             key: str | None = None) -> list[dict]:
-    """Every API call once, attributed to a work item, step and activity."""
+    """Every API call once, attributed to a work item, step, activity and person.
+
+    log_dirs is one log folder, or (person, log folder) pairs: the first folder holding a call names its person."""
+    if isinstance(log_dirs, (str, Path)):
+        log_dirs = [("", Path(log_dirs))]
     key_re = key_pattern(key, stories)
     number_to_key = {number: key for key, (number, _) in stories.items() if number}
     metas: dict[str, dict] = {}
-    for path in glob.glob(str(log_dir / "*" / "subagents" / "*.meta.json")):
-        with open(path) as fh:
-            metas[os.path.basename(path)[len("agent-"):-len(".meta.json")]] = json.load(fh)
-
-    # Parents first (sessions, then agents by depth) so an agent inherits the story or phase that
-    # was current in its parent when it was started.
-    main_logs = sorted(glob.glob(str(log_dir / "*.jsonl")))
-    sub_logs = sorted(glob.glob(str(log_dir / "*" / "subagents" / "*.jsonl")),
-                      key=lambda p: metas.get(os.path.basename(p)[6:-6], {}).get("spawnDepth") or 9)
     spawn_context: dict[str, tuple[str | None, str | None]] = {}
     launches: dict[str, dict] = {}  # Agent or Workflow tool_use id -> the tool and who called it
     calls: dict[str, dict] = {}
+    ordered: list[tuple[str, str]] = []
+    for person, log_dir in log_dirs:
+        for path in glob.glob(str(log_dir / "*" / "subagents" / "*.meta.json")):
+            with open(path) as fh:
+                metas[os.path.basename(path)[len("agent-"):-len(".meta.json")]] = json.load(fh)
+        # Parents first (sessions, then agents by depth) so an agent inherits the story or phase that
+        # was current in its parent when it was started.
+        main_logs = sorted(glob.glob(str(log_dir / "*.jsonl")))
+        sub_logs = sorted(glob.glob(str(log_dir / "*" / "subagents" / "*.jsonl")),
+                          key=lambda p: metas.get(os.path.basename(p)[6:-6], {}).get("spawnDepth") or 9)
+        ordered += [(person, path) for path in main_logs + sub_logs]
 
-    for path in main_logs + sub_logs:
+    for person, path in ordered:
         agent_id = os.path.basename(path)[6:-6] if f"{os.sep}subagents{os.sep}" in path else None
         meta = metas.get(agent_id, {}) if agent_id else {}
         description = meta.get("description") if agent_id else None
@@ -379,7 +456,7 @@ def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | Non
             agent_info = {"session": Path(path).parent.parent.name, "parent": launch.get("by", ""),
                           "launched_by": launch.get("tool", "unknown"), "run": meta.get("toolUseId") or "",
                           "agent_type": meta.get("agentType") or "", "depth": meta.get("spawnDepth") or "",
-                          "description": description or ""}
+                          "description": description or "", "person": person}
             inherited_story, inherited_phase = spawn_context.get(meta.get("toolUseId"), (None, None))
             agent_story = story_from_text(description, number_to_key, key_re) or inherited_story
             agent_phase = phase_from_description(description) or inherited_phase
@@ -449,7 +526,8 @@ def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | Non
                 entry = calls.setdefault(msg_id, {"usage": {}, "content": [], "model": message.get("model") or "",
                                                   "item": item, "kind": item_kind, "step": step,
                                                   "day": (stamp or "")[:10], "stamp": stamp or "",
-                                                  "agent": agent_id or "", "agent_info": agent_info})
+                                                  "agent": agent_id or "", "agent_info": agent_info,
+                                                  "person": person})
                 for key, value in usage.items():
                     if isinstance(value, int):
                         entry["usage"][key] = max(entry["usage"].get(key, 0), value)
@@ -463,7 +541,8 @@ def collect(log_dir: Path, stories: dict[str, tuple[str, str]], since: str | Non
         parts = _weigh(entry["usage"])
         result.append({"kind": entry["kind"], "item": entry["item"], "step": entry["step"], "day": entry["day"],
                        "stamp": entry.get("stamp", ""), "agent": entry["agent"], "agent_info": entry["agent_info"],
-                       "model": entry["model"], "activity": activity_of(entry["content"]), **parts})
+                       "model": entry["model"], "activity": activity_of(entry["content"]), "person": entry["person"],
+                       **parts})
     return result
 
 
@@ -508,17 +587,17 @@ def _write_atomic(path: Path, write) -> None:
 def detail_rows(calls: list[dict], stories: dict[str, tuple[str, str]]) -> list[list]:
     grand = sum(c["units"] for c in calls) or 1
     per_item = _sum(calls, lambda c: (c["kind"], c["item"]))
-    grouped = _sum(calls, lambda c: (c["kind"], c["item"], c["day"], c["step"], c["activity"], c["model"]))
+    grouped = _sum(calls, lambda c: (c["kind"], c["item"], c["day"], c["step"], c["activity"], c["model"], c["person"]))
     rows = [["kind", "work_item", "story_no", "title", "day", "step", "activity", "category", "model", "calls", "cost_units",
              "pct_of_item", "pct_of_total", "output_tokens", "cache_read_tokens", "cache_write_tokens",
-             "fresh_input_tokens"]]
+             "fresh_input_tokens", "person"]]
     ordered = sorted(grouped.items(), key=lambda kv: (_item_order(kv[0][0], kv[0][1], stories), kv[0][2], -kv[1]["units"]))
-    for (kind, item, day, step, activity, model), v in ordered:
+    for (kind, item, day, step, activity, model, person), v in ordered:
         number, title = stories.get(item, ("", ""))
         rows.append([kind, item, number, title, day, step, activity, SUMMARY_ACTIVITY.get(activity, AI_REASONING), model,
                      v["calls"], round(v["units"]),
                      f"{v['units'] / (per_item[(kind, item)]['units'] or 1):.1%}", f"{v['units'] / grand:.2%}",
-                     v["output"], v["cache_read"], v["cache_write_5m"] + v["cache_write_1h"], v["input"]])
+                     v["output"], v["cache_read"], v["cache_write_5m"] + v["cache_write_1h"], v["input"], person])
     return rows
 
 
@@ -527,7 +606,7 @@ def usage_rows(calls: list[dict], stories: dict[str, tuple[str, str]]) -> list[l
     totals: dict = collections.defaultdict(collections.Counter)
     times: dict = {}
     for c in calls:
-        key = (c["kind"], c["item"], c["model"])
+        key = (c["kind"], c["item"], c["model"], c["person"])
         totals[key]["calls"] += 1
         for k in ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output", "units"):
             totals[key][k] += c[k]
@@ -535,13 +614,14 @@ def usage_rows(calls: list[dict], stories: dict[str, tuple[str, str]]) -> list[l
             first, last = times.get(key, (c["stamp"], c["stamp"]))
             times[key] = (min(first, c["stamp"]), max(last, c["stamp"]))
     rows = [["kind", "work_item", "story_no", "title", "model", "first_call", "last_call", "calls", "input_tokens",
-             "cache_write_5m_tokens", "cache_write_1h_tokens", "cache_read_tokens", "output_tokens", "cost_units"]]
-    for key in sorted(totals, key=lambda k: (_item_order(k[0], k[1], stories), k[2])):
-        kind, item, model = key
+             "cache_write_5m_tokens", "cache_write_1h_tokens", "cache_read_tokens", "output_tokens", "cost_units",
+             "person"]]
+    for key in sorted(totals, key=lambda k: (_item_order(k[0], k[1], stories), k[2], k[3])):
+        kind, item, model, person = key
         g, (first, last) = totals[key], times.get(key, ("", ""))
         number, title = stories.get(item, ("", ""))
         rows.append([kind, item, number, title, model, first, last, g["calls"], g["input"], g["cache_write_5m"],
-                     g["cache_write_1h"], g["cache_read"], g["output"], round(g["units"])])
+                     g["cache_write_1h"], g["cache_read"], g["output"], round(g["units"]), person])
     return rows
 
 
@@ -564,21 +644,21 @@ def daily_rows(calls: list[dict], stories: dict[str, tuple[str, str]], prices: d
     cost_usd is at Claude API list prices when claude-prices.json exists, else blank."""
     totals: dict = collections.defaultdict(collections.Counter)
     for c in calls:
-        key = (c["day"], c["kind"], c["item"], c["model"])
+        key = (c["day"], c["kind"], c["item"], c["model"], c["person"])
         totals[key]["calls"] += 1
         for k in ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output", "units"):
             totals[key][k] += c[k]
     rows = [["day", "kind", "work_item", "story_no", "title", "model", "calls", "input_tokens", "cache_write_5m_tokens",
-             "cache_write_1h_tokens", "cache_read_tokens", "output_tokens", "cost_units", "cost_usd"]]
-    for key in sorted(totals, key=lambda k: (k[0], _item_order(k[1], k[2], stories), k[3])):
-        day, kind, item, model = key
+             "cache_write_1h_tokens", "cache_read_tokens", "output_tokens", "cost_units", "cost_usd", "person"]]
+    for key in sorted(totals, key=lambda k: (k[0], _item_order(k[1], k[2], stories), k[3], k[4])):
+        day, kind, item, model, person = key
         g = totals[key]
         number, title = stories.get(item, ("", ""))
         price = prices.get(_pricing_id(model))
         usd = "" if not price else round(sum(g[k] * price[k] for k in
                                              ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")) / 1e6, 4)
         rows.append([day, kind, item, number, title, model, g["calls"], g["input"], g["cache_write_5m"],
-                     g["cache_write_1h"], g["cache_read"], g["output"], round(g["units"]), usd])
+                     g["cache_write_1h"], g["cache_read"], g["output"], round(g["units"]), usd, person])
     return rows
 
 
@@ -618,7 +698,7 @@ def agent_run_rows(calls: list[dict], stories: dict[str, tuple[str, str]], price
     how many at once) can be read per story or phase. Calls in the main session are not agents."""
     rows = [["kind", "work_item", "story_no", "title", "session", "agent_id", "parent", "launched_by", "run_id",
              "agent_type", "description", "step", "depth", "models", "first_call", "last_call", "minutes",
-             "parallel_with", "calls", "cost_units", "cost_usd"]]
+             "parallel_with", "calls", "cost_units", "cost_usd", "person"]]
     runs = agent_runs(calls, prices)
     for r in sorted(runs, key=lambda r: (_item_order(*r["kind_item"], stories), r["first_call"], r["agent_id"])):
         kind, item = r["kind_item"]
@@ -626,7 +706,7 @@ def agent_run_rows(calls: list[dict], stories: dict[str, tuple[str, str]], price
         rows.append([kind, item, number, title, r["session"], r["agent_id"], r["parent"], r["launched_by"], r["run"],
                      r["agent_type"], r["description"], r["step"], r["depth"], r["models"], r["first_call"],
                      r["last_call"], _minutes(r["first_call"], r["last_call"]), r["parallel_with"], r["calls"],
-                     round(r["units"]), "" if r["usd"] is None else round(r["usd"], 4)])
+                     round(r["units"]), "" if r["usd"] is None else round(r["usd"], 4), r["person"]])
     return rows
 
 
@@ -832,6 +912,9 @@ def report_markdown(calls: list[dict], stories: dict[str, tuple[str, str]], sour
     lines += table("By work item and step", "work item · step", lambda c: (c["kind"], c["item"], c["step"]))
     lines += table("By work item and activity", "work item · activity", lambda c: (c["kind"], c["item"], c["activity"]))
     lines += table("By model", "model", lambda c: c["model"])
+    if len({c["person"] for c in calls}) > 1:
+        lines += table("By person", "person", lambda c: c["person"] or "unnamed")
+        lines += table("By work item and person", "work item · person", lambda c: (c["kind"], c["item"], c["person"] or "unnamed"))
     runs = agent_runs(calls, {})
     if runs:
         lines += ["## Agents and orchestration", "",
@@ -881,7 +964,14 @@ def story_summary(calls: list[dict], key: str, stories: dict[str, tuple[str, str
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("project", nargs="?", default=".", help="project root or any path inside it (default: .)")
-    parser.add_argument("--logs", help="Claude Code log folder (default: derived from the project root)")
+    parser.add_argument("--logs", action="append", metavar="[NAME=]FOLDER",
+                        help="a Claude Code log folder, optionally named for the person column; repeat for several "
+                             "(default: this project's log folder, named after your git user.name)")
+    parser.add_argument("--team", metavar="FOLDER", help="also read every person's folder in this team logs folder "
+                        "(default: the org config's team_logs_folder, if set)")
+    parser.add_argument("--export", nargs="?", const="", metavar="FOLDER",
+                        help="copy your log folder to FOLDER/<your name>/ and stop (default FOLDER: team_logs_folder)")
+    parser.add_argument("--as", dest="name", help="your name for the person column and --export (default: git user.name)")
     parser.add_argument("-o", "--out-dir", help="output folder (default: org config token_usage_folder, else docs/costing/token_usage)")
     parser.add_argument("--since", help="count only calls on or after this date (YYYY-MM-DD)")
     parser.add_argument("--story", help="also print this story's summary (e.g. PROJ-24)")
@@ -892,22 +982,57 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     root = project_root(Path(args.project))
-    log_dir = Path(args.logs) if args.logs else log_dir_for(root)
     config = org_config(root)
     folder = str(config.get("token_usage_folder") or "docs/costing/token_usage").replace("{project-root}", "").lstrip("/\\")
     out_dir = Path(args.out_dir) if args.out_dir else root / folder
-    if not log_dir.is_dir():
-        print(json.dumps({"error": f"no Claude Code log folder at {log_dir}"}))
+
+    def configured(path: str | None) -> Path | None:
+        path = str(path or "").replace("{project-root}", str(root)).strip()
+        return root / Path(path).expanduser() if path else None  # an absolute path replaces root
+
+    me = args.name or whoami(root)
+    own_logs = log_dir_for(root)
+    team_dir = configured(args.team) or configured(config.get("team_logs_folder"))
+    if args.export is not None:
+        export_dir = configured(args.export) or team_dir
+        if not export_dir:
+            print(json.dumps({"error": "no folder to export to: pass --export FOLDER or set team_logs_folder"}))
+            return 2
+        source = parse_logs_arg(args.logs[0])[1] if args.logs else own_logs
+        if not source.is_dir():
+            print(json.dumps({"error": f"no Claude Code log folder at {source}"}))
+            return 2
+        try:
+            print(json.dumps({**export_logs(source, export_dir, me), "person": me}, indent=2))
+        except OSError as exc:
+            print(json.dumps({"error": f"{type(exc).__name__}: {exc}"}))
+            return 2
+        return 0
+
+    if args.logs:
+        sources = [(name or (me if len(args.logs) == 1 else path.name), path) for name, path in map(parse_logs_arg, args.logs)]
+    else:
+        sources = [(me, own_logs)] if own_logs.is_dir() or not team_dir else []
+    if team_dir:
+        if not team_dir.is_dir():
+            print(json.dumps({"error": f"no team logs folder at {team_dir}"}))
+            return 2
+        # Your own export is a copy of logs already read: skip it (a stale one would add nothing anyway).
+        sources += team_sources(team_dir, skip=folder_name(me) if sources else None)
+    missing = [str(path) for _, path in sources if not path.is_dir()]
+    if missing or not sources:
+        print(json.dumps({"error": f"no Claude Code log folder at {', '.join(missing) or own_logs}"}))
         return 2
+    log_source = ", ".join(str(path) for _, path in sources)
     try:
         stories = load_stories(Path(args.stories) if args.stories else root / DATA_DIR / "stories.json")
         savings = load_savings(Path(args.savings) if args.savings else root / DATA_DIR / "savings.json")
-        calls = collect(log_dir, stories, args.since, args.key or config.get("jira_project_key") or None)
+        calls = collect(sources, stories, args.since, args.key or config.get("jira_project_key") or None)
     except (OSError, ValueError, KeyError) as exc:
         print(json.dumps({"error": f"{type(exc).__name__}: {exc}"}))
         return 2
     if args.verbose:
-        print(f"{len(calls)} calls from {log_dir}", file=sys.stderr)
+        print(f"{len(calls)} calls from {log_source}", file=sys.stderr)
     prices = load_prices(root / DATA_DIR / "claude-prices.json")
     budgets = load_budgets(root / DATA_DIR / "token-budgets.json")
 
@@ -916,7 +1041,7 @@ def main(argv: list[str] | None = None) -> int:
         "token_usage_summary.csv": lambda fh: csv.writer(fh).writerows(summary_rows(calls, stories, combine_stories=False)),
         "token_usage_summary_final.csv": lambda fh: csv.writer(fh).writerows(
             summary_rows(calls, stories, combine_stories=True, savings=savings, prices=prices, budgets=budgets)),
-        "report.md": lambda fh: fh.write(report_markdown(calls, stories, str(log_dir), budget_rows(calls, stories, prices, budgets))),
+        "report.md": lambda fh: fh.write(report_markdown(calls, stories, log_source, budget_rows(calls, stories, prices, budgets))),
         "claude_usage.csv": lambda fh: csv.writer(fh).writerows(usage_rows(calls, stories)),
         "claude_usage_daily.csv": lambda fh: csv.writer(fh).writerows(daily_rows(calls, stories, prices)),
         "agent_runs.csv": lambda fh: csv.writer(fh).writerows(agent_run_rows(calls, stories, prices)),
@@ -925,7 +1050,13 @@ def main(argv: list[str] | None = None) -> int:
         _write_atomic(out_dir / name, write)
 
     result = {"written": [str(out_dir / name) for name in outputs], "calls": len(calls),
-              "cost_units": round(sum(c["units"] for c in calls))}
+              "cost_units": round(sum(c["units"] for c in calls)),
+              "logs": [{"person": person, "folder": str(path)} for person, path in sources]}
+    people = collections.Counter()
+    for c in calls:
+        people[c["person"]] += c["units"]
+    if len(people) > 1:
+        result["people"] = {person: round(units) for person, units in people.most_common()}
     budget = budget_rows(calls, stories, prices, budgets)
     if budget:
         result["budgets"] = [{k: (round(v, 4) if k == "variance_pct" else round(v, 2)) if isinstance(v, float) else v
