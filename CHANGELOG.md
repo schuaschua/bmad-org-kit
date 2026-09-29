@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.12.0 — 2026-09-29
+
+### Scrooge McDuck
+
+- **The whole team in one ledger.** Claude Code keeps each person's logs in their own home folder, so a ledger used to show only the sessions of whoever refreshed it. Now:
+  - `token_report.py --export` copies your project's logs to `<team_logs_folder>/<your git user.name>/`, only new or changed files. `--as NAME` sets a different name.
+  - When `team_logs_folder` is set, every refresh, including the background hooks, reads your own logs plus every person's folder in it. `--team FOLDER` does the same for one run.
+  - `--logs` can be repeated, as `NAME=FOLDER`.
+  - A call found in more than one folder still counts once.
+- **A `person` column.** `token_usage.csv`, `claude_usage.csv`, `claude_usage_daily.csv` and `agent_runs.csv` end with the person whose logs a row came from. The close-out workbook's Claude Usage Detail and Claude Usage Daily sheets gain a Person column. With more than one person, `report.md` adds tables by person and by work item and person, and the JSON output gains `people`.
+- The JSON output lists the log folders read (`logs`).
+
+### Upgrading
+
+- `team_logs_folder` is optional and personal. Set it under `[modules.org]` in each person's `_bmad/custom/config.user.toml`, pointing at a shared folder outside the repository, such as a synced OneDrive or SharePoint folder. The logs hold whole conversations, so keep them out of git and share the folder with the project team only.
+- `claude_usage.csv` and `claude_usage_daily.csv` now have one row per person for each work item and model (and day). A dashboard that expects one row per work item and model should sum them.
+
 ## 1.11.0 — 2026-09-29
 
 ### Scrooge McDuck

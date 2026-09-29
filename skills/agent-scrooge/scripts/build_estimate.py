@@ -1457,7 +1457,7 @@ def write_close_out(wb, close: dict, ccy: str, k: dict) -> None:
     put(ds, "A2", "From the token ledger (claude_usage.csv). Cost = tokens x the Claude Prices sheet; models with no price cost 0.")
     header(ds, 4, ["Kind", "Work item", "Story no", "Title", "Model", "Pricing model", "First call", "Last call", "Calls",
                    "Input tokens", "Cache write 5m tokens", "Cache write 1h tokens", "Cache read tokens", "Output tokens",
-                   "Cost (USD)", f"Cost ({ccy})"])
+                   "Cost (USD)", f"Cost ({ccy})", "Person"])
     r = 4
     for u in close["usage"]:
         r += 1
@@ -1472,9 +1472,10 @@ def write_close_out(wb, close: dict, ccy: str, k: dict) -> None:
               f"N{r}*VLOOKUP($F{r},{price_range},7,FALSE)"]
         put(ds, f"O{r}", f"=IFERROR(({'+'.join(vl)})/1000000,0)", MONEY)
         put(ds, f"P{r}", f"=O{r}*ClaudeFxRate", MONEY)
-    add_table(ds, "tblClaudeUsageDetail", "A", 4, "P", r)
+        ds.cell(row=r, column=17, value=u.get("person", ""))
+    add_table(ds, "tblClaudeUsageDetail", "A", 4, "Q", r)
     last_detail = max(r, 5)
-    widths(ds, [10, 30, 9, 30, 26, 22, 17, 17, 9, 14, 14, 14, 16, 14, 14, 14])
+    widths(ds, [10, 30, 9, 30, 26, 22, 17, 17, 9, 14, 14, 14, 16, 14, 14, 14, 18])
     ds.freeze_panes = "A5"
 
     # Claude Usage: by model, totals
@@ -1510,7 +1511,7 @@ def write_close_out(wb, close: dict, ccy: str, k: dict) -> None:
                       "Prices sheet; models with no price cost 0.")
         header(dy, 4, ["Day", "Kind", "Work item", "Story no", "Title", "Model", "Pricing model", "Calls", "Input tokens",
                        "Cache write 5m tokens", "Cache write 1h tokens", "Cache read tokens", "Output tokens",
-                       "Cost (USD)", f"Cost ({ccy})"])
+                       "Cost (USD)", f"Cost ({ccy})", "Person"])
         r = 4
         for u in close["daily"]:
             r += 1
@@ -1522,8 +1523,9 @@ def write_close_out(wb, close: dict, ccy: str, k: dict) -> None:
             vl = "+".join(f"{col}{r}*VLOOKUP($G{r},{price_range},{n},FALSE)" for col, n in zip("IJKLM", range(3, 8)))
             put(dy, f"N{r}", f"=IFERROR(({vl})/1000000,0)", MONEY)
             put(dy, f"O{r}", f"=N{r}*ClaudeFxRate", MONEY)
-        add_table(dy, "tblClaudeUsageDaily", "A", 4, "O", r)
-        widths(dy, [12, 10, 30, 9, 30, 26, 22, 9, 14, 14, 14, 16, 14, 14, 14])
+            dy.cell(row=r, column=16, value=u.get("person", ""))
+        add_table(dy, "tblClaudeUsageDaily", "A", 4, "P", r)
+        widths(dy, [12, 10, 30, 9, 30, 26, 22, 9, 14, 14, 14, 16, 14, 14, 14, 18])
         dy.freeze_panes = "A5"
 
     # Project Timeline
