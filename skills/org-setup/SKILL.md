@@ -7,7 +7,7 @@ description: Sets up Org Kit module in a project. Use when the user requests to 
 
 ## Overview
 
-Adds the Org Kit's project files to a BMad 6.12+ project. The **BMad installer** owns module registration: installing this kit as a module (from its GitHub repository) writes the `[modules.org]` section of `{project-root}/_bmad/config.toml`, registers the agents (Jules, Scrooge McDuck, Da Vinci) in the manifests and adds the capabilities to `bmad-help`. This skill never writes `_bmad/config.toml`, `_bmad/config.user.toml`, `_bmad/_config/` or any installer-managed folder, and never deletes anything under `_bmad/`.
+Adds the Org Kit's project files to a BMad 6.12 project. It doesn't support BMad 6.13, which replaces `bmad-create-epics-and-stories` and `bmad-sprint-planning` with `bmad-ticket` and moves the planning documents, and Org Kit 2.0 will support it. The **BMad installer** owns module registration: installing this kit as a module (from its GitHub repository) writes the `[modules.org]` section of `{project-root}/_bmad/config.toml`, registers the agents (Jules, Scrooge McDuck, Da Vinci) in the manifests and adds the capabilities to `bmad-help`. This skill never writes `_bmad/config.toml`, `_bmad/config.user.toml`, `_bmad/_config/` or any installer-managed folder, and never deletes anything under `_bmad/`.
 
 What it does add (see **Org Kit Extensions**): the org standards baselines, the blank governance questionnaires, the BMad customization overrides in `_bmad/custom/`, the skill links, Scrooge's ledger refresh hooks and `.gitignore` entry, and a check of the tooling Jules and the Jira sync need.
 

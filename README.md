@@ -2,7 +2,7 @@
 
 A BMad module that adds the organisation layer to a BMad Method (`bmm`) project: org standards, governance sign-off, cost estimates, design documents and diagrams, and a count of what the AI-assisted delivery itself cost. Everything is produced inside the BMad flow, from the artifacts BMad already writes: the spine, spec, UX docs, epics and sprint status.
 
-Version 1.12.0 ([CHANGELOG.md](CHANGELOG.md)).
+Version 1.12.1 ([CHANGELOG.md](CHANGELOG.md)). Requires BMad 6.12. BMad 6.13 replaces the epics and sprint planning skills with `bmad-ticket`; Org Kit 2.0 will support it.
 
 ## What's in it
 
