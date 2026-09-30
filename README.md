@@ -29,7 +29,7 @@ Version 1.13.0 ([CHANGELOG.md](CHANGELOG.md)). Requires BMad 6.12. BMad 6.13 rep
 | Moment | What you're offered or asked |
 | --- | --- |
 | `bmad-spec`, `bmad-architecture` or `bmad-build` starts, with no `docs/architecture/architecture.md` | Stops and sends you to Da Vinci to agree the architecture principles first (you can choose to go on without) |
-| `bmad-build` finishes, or `bmad-code-review` runs | Da Vinci's DevOps stack check: pipeline or IaC files for a tool you didn't agree |
+| `bmad-build` finishes, or `bmad-code-review` runs | Da Vinci's architecture check: code, pipelines or infrastructure that don't follow your answers |
 | `bmad-architecture` finishes | Any of: diagrams (Da Vinci), governance assessments (Jules), cost estimate (Scrooge) |
 | `bmad-create-epics-and-stories` finishes | Jira sync; then Scrooge's token budgets, if none are set |
 | `bmad-sprint-planning` finishes | Scrooge's token budgets (or a review that adds sprint budgets) |
@@ -109,7 +109,19 @@ Da Vinci is a memory agent. He remembers the principles you held firm on and the
   - He shows you a summary of every answer, the principles and the open questions, and writes only once you confirm it.
   - Cloud-neutral answers go in `docs/architecture/architecture.md`. Each cloud you name gets its own file beside it (`azure.md`, `aws.md` ...), holding its services, naming, tags, regions, connectivity and principles. Principle numbers are unique across the files.
   - `bmad-architecture` loads every `.md` in `docs/architecture/` as standing facts: every AD honours each principle or names the one it departs from and why. So do `bmad-build`, `bmad-build-auto`, `bmad-code-review` and the dev agent.
-  - **The build keeps to the DevOps stack.** `uv run skills/agent-davinci/scripts/stack-check.py <project-root>` flags pipeline and infrastructure files for a tool you didn't agree (Bicep when you chose Terraform, a GitHub Actions workflow when you chose Jenkins). `bmad-build` won't call work finished until they're fixed or you keep them, `bmad-build-auto` reports them, and `bmad-code-review` raises them as findings. `--strict` also fails when an agreed tool has no files yet.
+  - **The build keeps to your answers.** `uv run skills/agent-davinci/scripts/stack-check.py <project-root>` holds the code, pipelines and infrastructure against everything you answered:
+    - **Fails the check:**
+      - another cloud, or any cloud when you said on-premises;
+      - mobile code in a pure web app, or the wrong mobile framework;
+      - a front end, back end, database, AI or analytics platform you didn't choose (a named language allows its frameworks);
+      - the wrong CI, CD/GitOps or IaC tool (Bicep when you chose Terraform, a GitHub Actions workflow when you chose Jenkins);
+      - the git remote on the wrong host;
+      - an agreed scan (SAST, DAST, dependency, image, IaC, secrets) missing from the pipelines;
+      - stored cloud keys in a pipeline when you chose federated identity.
+    - **Warnings:** regions, tag keys and environments that aren't in your answers.
+    - **Judged by the reviewer:** what files can't show (service model, policies, the pillar ranking, security level, naming, style, migration, push or pull, branching, gates and release strategy), listed with your answers as a checklist.
+
+    `bmad-build` won't call off-stack work finished until it's fixed or you keep it, `bmad-build-auto` reports it, and `bmad-code-review` raises it as findings. `--strict` also fails when an agreed tool has no files yet.
 - **No spine, no drawing.** Diagrams, documents and the drift check need a spine. Without one Da Vinci stops, even when told not to ask questions or to just sketch; there's no draft mode.
 - **Diagrams**: "draw the deployment diagram", "sequence diagram for one chat turn". A `.drawio` file with a `<name>.model.json` beside it listing each element's citation. They use Azure and Kubernetes icons from draw.io's libraries and follow the org's drawing rules. Nothing overlaps, and the paper size is chosen to fit. PNG and SVG exports need draw.io desktop.
 - **Documents**: "write the HLD", "LLD for the Chat API". `hld.docx` or `lld-<component>.docx`, with the current diagrams embedded, open points collected in an appendix, and a trace from each AD to where it's cited. They follow the org outline, or your template in `<design docs folder>/templates/`. Da Vinci can start from an existing Confluence page and publish to Confluence, asking first.

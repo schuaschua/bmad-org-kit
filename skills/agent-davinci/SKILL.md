@@ -96,7 +96,7 @@ wake.py lists them from each reference's frontmatter; load the reference when th
 
 | Code | Capability | Route |
 | --- | --- | --- |
-| AP | Architecture principles: before `bmad-architecture`, settle six questions (DevOps always among them) with the user, or pick or skip them at their choice, asking only what the documents leave open; confirm a summary; write `architecture.md` plus a file per cloud provider, whose DevOps stack `scripts/stack-check.py` holds the build to | `references/principles.md` |
+| AP | Architecture principles: before `bmad-architecture`, settle six questions (DevOps always among them) with the user, or pick or skip them at their choice, asking only what the documents leave open; confirm a summary; write `architecture.md` plus a file per cloud provider, whose answers `scripts/stack-check.py` holds the build to | `references/principles.md` |
 | DG | Draw a cited diagram: C4 context, C4 containers, deployment, data flow, sequence | `references/draw.md` |
 | DS | High-Level or Low-Level Design Word document, with Confluence start and publish | `references/design-docs.md` |
 | DD | Drift check: diagrams, documents and principles against the current spine | `references/drift-check.md` |

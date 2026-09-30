@@ -147,15 +147,15 @@ from and why.
 
 ## DevOps
 
-| Item | Answer | Source |
-| --- | --- | --- |
-| CI | GitHub Actions | owner: <who, date> |
-| CD / GitOps | ArgoCD, pull-based from the `deploy` repository | owner: <who, date> |
-| Source control and branching | GitHub, trunk-based | |
-| Infrastructure as code | Terraform, through the same pipeline | |
-| Environments | Dev, Test, Prod; separate subscriptions; no production data below Prod | |
-| Approval gates and release strategy | tests, SAST and a named approver before Prod; canary | |
-| Pipeline security | OIDC federation, no stored cloud keys; SAST, DAST, dependency and image scans | |
+| # | Item | Answer | Source |
+| --- | --- | --- | --- |
+| 5a | CI | GitHub Actions | owner: <who, date> |
+| 5b | CD / GitOps | ArgoCD, pull-based from the `deploy` repository | owner: <who, date> |
+| 5c | Source control and branching | GitHub, trunk-based | |
+| 5d | Infrastructure as code | Terraform, through the same pipeline | |
+| 6a | Environments | Dev, Test, Prod; separate subscriptions; no production data below Prod | |
+| 6b | Approval gates and release strategy | tests, SAST and a named approver before Prod; canary | |
+| 6c | Secrets and pipeline security | OIDC federation, no stored cloud keys; SAST, DAST, dependency and image scans | |
 
 ## Principles
 
@@ -172,7 +172,11 @@ from and why.
 | Date | Item | Change | Why |
 ```
 
-Keep the DevOps table's Answer cells to the tools chosen. The build checks the project's pipeline and IaC files against them with `scripts/stack-check.py`, so any tool named there counts as agreed, even one written as "not Bicep". Put exclusions in a principle.
+Every answer row, in `architecture.md` and the provider files, starts with its question part (`1b`, `3d`, `5a` ...). The build checks the project against them with `scripts/stack-check.py`, which finds the rows by that key and matches the names in the Answer cells. So:
+- keep each Answer cell to what was chosen, because anything named there counts as agreed, even when it's written as "not Bicep". Put exclusions in a principle;
+- name regions as the provider does (`UAE North`, `us-east-1`);
+- list tag keys after `tags:`;
+- name environments plainly (Dev, Test, UAT, Prod).
 
 A provider file (`azure.md`, `aws.md` ...) has the same shape:
 
@@ -194,7 +198,7 @@ Never overwrite a document you didn't write. If a policy the organisation placed
 
 ## After writing
 
-- **The build follows the DevOps answers.** `bmad-build`, `bmad-build-auto` and `bmad-code-review` run `scripts/stack-check.py`, which flags pipeline or IaC files for a tool not agreed here (Bicep when Terraform was agreed, a GitHub Actions workflow when Jenkins was). Tell {user_name} in one line.
+- **The build follows the answers.** `bmad-build`, `bmad-build-auto` and `bmad-code-review` run `scripts/stack-check.py`. It flags code, pipelines and infrastructure that use something not agreed here: another cloud; a different front end, back end, database or AI platform; mobile code in a pure web app; Bicep when Terraform was agreed; a GitHub Actions workflow when Jenkins was; an agreed scan missing from the pipelines; stored cloud keys when federated identity was agreed. Regions, tags and environments not named here are warnings. What files can't show goes to the reviewer as a checklist. Tell {user_name} in one line.
 - **No spine yet:** say `bmad-architecture` can start now and will load the files. Suggest a fresh session (`/clear`).
 - **A spine exists:** a changed answer or principle may break ADs already written. Run the drift check's principles pass (`references/drift-check.md`), then list each AD that no longer complies and what would fix it. The spine changes only through `bmad-architecture`, or through an amendment {user_name} approves word for word.
 

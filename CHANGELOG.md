@@ -28,19 +28,32 @@
   - secrets and scans: SAST, DAST, dependency, image.
 
   `architecture.md` gains a **DevOps** section.
-- **The build keeps to the agreed stack.** The new `scripts/stack-check.py` reads the DevOps section and flags pipeline and IaC files for a tool nobody agreed, such as `*.bicep` when Terraform was chosen, or a GitHub Actions workflow when Jenkins was. `--strict` also fails when an agreed tool has no files yet.
+- **The build keeps to every answer.** The new `scripts/stack-check.py` reads the answer rows (keyed by question part) in `architecture.md` and the provider files, and holds the project's files against them.
+  - **Fails (`off_stack`):**
+    - another cloud, or any cloud for on-premises;
+    - mobile code in a pure web app, or the wrong mobile framework;
+    - a front end, back end, database, AI or analytics platform nobody chose (a named language allows its frameworks; a named framework narrows it);
+    - the wrong CI, CD/GitOps or IaC tool;
+    - the git remote on the wrong host;
+    - stored cloud keys in a pipeline when federated identity was agreed.
+
+    An agreed scan (SAST, DAST, dependency, image, IaC, secrets) missing while pipelines exist also fails.
+  - **Warnings:** regions, tag keys and environments that aren't in the answers.
+  - **`judge`:** everything answered that files can't show, listed for the reviewer.
+  - **`--strict`** also fails when an agreed tool has no files yet.
+  - **Older rows:** rows numbered by the old eighteen questions, and a DevOps table keyed by Item, are still read.
 - **No spine, no drawing.** Diagrams, design documents and the drift check stop without a spine. This holds even when Da Vinci is told not to ask questions, is running unattended or is asked to sketch: there is no draft mode, no spine of his own and no hand-written `.drawio` or `.docx`. With a spine and no questions allowed, challenge items become gaps.
 
 ### Build path
 
 - `bmad-spec` (new override) and `bmad-build` check for `architecture.md` before starting. When it's missing, they stop and offer Da Vinci's guardrails round, and go on only if you say so. Headless, they go on and record it.
-- `bmad-build` runs the stack check before calling work finished. `bmad-build-auto` reports off-stack files at the top of its summary, and `bmad-code-review` raises them as high-severity findings.
+- `bmad-build` runs the check before calling work finished, and holds its changes against the judge list and the principles. `bmad-build-auto` reports off-stack work at the top of its summary. `bmad-code-review` raises off-stack work as high-severity findings, warnings as low, and judged breaches by the principle's risk.
 - `bmad-agent-dev`, `bmad-build`, `bmad-build-auto` and `bmad-code-review` load the architecture folder as persistent facts, so the agreed stack guides the code from the start.
 
 ### Upgrading
 
 - Rerun `org-setup`. It writes the new `_bmad/custom/bmad-spec.toml`. For `bmad-build.toml`, `bmad-build-auto.toml`, `bmad-code-review.toml`, `bmad-agent-dev.toml` and `bmad-architecture.toml`, it shows the kit's version next to yours to merge.
-- An existing `architecture.md` has no DevOps section, so the stack check reports `no_devops_section` and passes. Ask Da Vinci to revise the principles to add it.
+- An existing `architecture.md` is read through its old question numbers, but it has no DevOps answers. Ask Da Vinci to revise the principles to add them.
 
 ## 1.12.1 — 2026-09-29
 
