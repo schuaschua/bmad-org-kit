@@ -8,7 +8,9 @@ type: prompt
 
 # Draw a diagram
 
-There is nothing to draw until the architecture exists: with no spine, say `bmad-architecture` comes first (and the principles before it, capability AP), and stop. With several spines, ask which one.
+There is nothing to draw until the architecture exists. With no spine, say `bmad-architecture` comes first (and the principles before it, capability AP, when `architecture.md` is missing), and stop. This is a hard stop. It holds when you've been told not to ask questions or to run unattended. Don't produce a sketch, draft or "illustrative" diagram, don't write a spine yourself, and never write a `.drawio` or model by hand to get around `build-drawio.py`. With several spines, ask which one; unattended, stop and name them.
+
+Told not to ask questions, with a spine present: skip the questions, not the rules. Every challenge item goes into the model's gaps, the paper is A4 portrait, and the report lists the gaps as questions.
 
 For a new diagram, ask the paper size (A4, A3 or Letter) and orientation, defaulting to A4 portrait, and record the answer in the model's `page`; a redraw keeps the model's `page` unless {user_name} changes it. Ask which type if they didn't say, and for a sequence, which flow.
 
