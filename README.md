@@ -2,7 +2,7 @@
 
 A BMad module that adds the organisation layer to a BMad Method (`bmm`) project: org standards, governance sign-off, cost estimates, design documents and diagrams, and a count of what the AI-assisted delivery itself cost. Everything is produced inside the BMad flow, from the artifacts BMad already writes: the spine, spec, UX docs, epics and sprint status.
 
-Version 1.12.1 ([CHANGELOG.md](CHANGELOG.md)). Requires BMad 6.12. BMad 6.13 replaces the epics and sprint planning skills with `bmad-ticket`; Org Kit 2.0 will support it.
+Version 1.13.0 ([CHANGELOG.md](CHANGELOG.md)). Requires BMad 6.12. BMad 6.13 replaces the epics and sprint planning skills with `bmad-ticket`; Org Kit 2.0 will support it.
 
 ## What's in it
 
@@ -28,7 +28,8 @@ Version 1.12.1 ([CHANGELOG.md](CHANGELOG.md)). Requires BMad 6.12. BMad 6.13 rep
 
 | Moment | What you're offered or asked |
 | --- | --- |
-| `bmad-architecture` starts, with no `docs/architecture/architecture.md` | Stops and sends you to Da Vinci to agree the architecture principles first (you can choose to go on without) |
+| `bmad-spec`, `bmad-architecture` or `bmad-build` starts, with no `docs/architecture/architecture.md` | Stops and sends you to Da Vinci to agree the architecture principles first (you can choose to go on without) |
+| `bmad-build` finishes, or `bmad-code-review` runs | Da Vinci's DevOps stack check: pipeline or IaC files for a tool you didn't agree |
 | `bmad-architecture` finishes | Any of: diagrams (Da Vinci), governance assessments (Jules), cost estimate (Scrooge) |
 | `bmad-create-epics-and-stories` finishes | Jira sync; then Scrooge's token budgets, if none are set |
 | `bmad-sprint-planning` finishes | Scrooge's token budgets (or a review that adds sprint budgets) |
@@ -76,7 +77,8 @@ Run these after installing and after every kit update:
 
 ```bash
 ls _bmad/custom/                                          # one file per override
-grep -L "architecture.md"     _bmad/custom/bmad-architecture.toml
+grep -L "architecture.md"     _bmad/custom/bmad-architecture.toml _bmad/custom/bmad-spec.toml _bmad/custom/bmad-build.toml
+grep -L "stack-check.py"      _bmad/custom/bmad-build*.toml _bmad/custom/bmad-code-review.toml
 grep -L "ai_feedback.py"    _bmad/custom/bmad-build*.toml _bmad/custom/bmad-retrospective.toml
 grep -L "token budgets"     _bmad/custom/bmad-create-epics-and-stories.toml _bmad/custom/bmad-sprint-planning.toml
 uv run .claude/skills/agent-scrooge/scripts/ai_feedback.py . pending   # should print "status": "ok"
@@ -93,28 +95,22 @@ Da Vinci is a memory agent. He remembers the principles you held firm on and the
 - **Architecture principles.** Before `bmad-architecture`, say "Da Vinci, set the architecture principles".
   - He first reads the brief, spec, PRD, your region's regulation and any policies you've put in `docs/architecture/`. He never asks what they already answer; those answers are recorded with their source. The kit's org standards don't count as answers.
   - He opens with "Bonjournio, I am the architecture design guardian & artist ..." and lists what he found in your files, each with its source.
-  - He then asks the rest, one or two at a time:
-    1. cloud, hybrid or on-premises;
-    2. the cloud platforms;
-    3. IaaS or PaaS;
-    4. a 1 to 6 ranking of the Well-Architected pillars;
-    5. your architecture policies (put them in `docs/architecture/`; questions 6 onwards are then answered from them first);
-    6. naming convention;
-    7. tags;
-    8. multi-region or single-region, and high availability;
-    9. on-premises integration and its network link;
-    10. how much AI, the organisation's familiarity with it, its data quality standards, and whether we're building our own AI/ML models;
-    11. the environments and how strict the rules between them are;
-    12. event-driven, microservices or monolith;
-    13. for a migration, comfort with AI running it;
-    14. the security level (Very strict to Relaxed);
-    15. the approved stack for the front end, back end, database, CI/CD and AI platform;
-    16. a pure web application, a pure mobile application, or hybrid (both); for mobile, which platforms (iOS, Android or both) and native or cross-platform;
-    17. whether there are heavy analytics workloads.
+  - He then asks how to go on: **answer the questions**, **pick everything for me** (he answers from your documents and safe defaults, marking each pick), or **skip the questions** (only what the documents say; the rest stays open). Run unattended, he skips.
+  - The six questions, one at a time, each asking only its open parts:
+    1. where it runs and how it connects: cloud, hybrid or on-premises; the cloud platforms; IaaS or PaaS; regions and high availability; the on-premises link;
+    2. rules and priorities: your architecture policies (put them in `docs/architecture/`; the rest is then answered from them first), a 1 to 6 ranking of the Well-Architected pillars, the security level, naming and tags;
+    3. solution shape and stack: web, mobile or hybrid; event-driven, microservices or monolith; migration; the approved front end, back end and database;
+    4. data and AI: how much AI, familiarity, data quality, building your own models, the AI platform; heavy analytics;
+    5. DevOps, build and deploy: CI (GitHub Actions, Jenkins, CircleCI, Azure DevOps, Bitbucket Pipelines), CD and GitOps (Argo CD, Flux, Tekton), source control and branching, infrastructure as code;
+    6. DevOps, environments and release: the environments and their separation, approval gates and release strategy, secrets and scans (SAST, DAST, dependency, image).
+
+    DevOps is always asked, even when your documents mention it.
   - The answers become a Context table, and the ones that constrain the design become principles (`P-1`, `P-2` ...): testable rules with their reason, pillar and source. Skipped questions stay open.
   - He shows you a summary of every answer, the principles and the open questions, and writes only once you confirm it.
   - Cloud-neutral answers go in `docs/architecture/architecture.md`. Each cloud you name gets its own file beside it (`azure.md`, `aws.md` ...), holding its services, naming, tags, regions, connectivity and principles. Principle numbers are unique across the files.
-  - `bmad-architecture` loads every `.md` in `docs/architecture/` as standing facts: every AD honours each principle or names the one it departs from and why.
+  - `bmad-architecture` loads every `.md` in `docs/architecture/` as standing facts: every AD honours each principle or names the one it departs from and why. So do `bmad-build`, `bmad-build-auto`, `bmad-code-review` and the dev agent.
+  - **The build keeps to the DevOps stack.** `uv run skills/agent-davinci/scripts/stack-check.py <project-root>` flags pipeline and infrastructure files for a tool you didn't agree (Bicep when you chose Terraform, a GitHub Actions workflow when you chose Jenkins). `bmad-build` won't call work finished until they're fixed or you keep them, `bmad-build-auto` reports them, and `bmad-code-review` raises them as findings. `--strict` also fails when an agreed tool has no files yet.
+- **No spine, no drawing.** Diagrams, documents and the drift check need a spine. Without one Da Vinci stops, even when told not to ask questions or to just sketch; there's no draft mode.
 - **Diagrams**: "draw the deployment diagram", "sequence diagram for one chat turn". A `.drawio` file with a `<name>.model.json` beside it listing each element's citation. They use Azure and Kubernetes icons from draw.io's libraries and follow the org's drawing rules. Nothing overlaps, and the paper size is chosen to fit. PNG and SVG exports need draw.io desktop.
 - **Documents**: "write the HLD", "LLD for the Chat API". `hld.docx` or `lld-<component>.docx`, with the current diagrams embedded, open points collected in an appendix, and a trace from each AD to where it's cited. They follow the org outline, or your template in `<design docs folder>/templates/`. Da Vinci can start from an existing Confluence page and publish to Confluence, asking first.
 - **Drift**: `uv run skills/agent-davinci/scripts/diagram-drift.py <project-root>` names the ADs that changed. It exits 1 when anything is stale, so it also works in CI. Da Vinci also checks the spine still honours the principles.

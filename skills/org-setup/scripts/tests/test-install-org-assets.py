@@ -54,9 +54,9 @@ class InstallOrgAssetsTests(unittest.TestCase):
         for name in ["TechnicalArchitectureAssessment.docx", "DataGovernancePrivacyAssessment.docx", "EnterpriseAIRiskAssessment.docx"]:
             self.assertTrue((self.root / "docs" / "governance" / name).is_file(), name)
         custom = self.root / "_bmad" / "custom"
-        self.assertEqual(len(out["overrides"]["written"]), 9)
+        self.assertEqual(len(out["overrides"]["written"]), 10)
         dev = tomllib.loads((custom / "bmad-agent-dev.toml").read_text(encoding="utf-8"))
-        self.assertEqual(dev["agent"]["persistent_facts"], ["file:docs/standards/*.md"])
+        self.assertEqual(dev["agent"]["persistent_facts"], ["file:docs/architecture/*.md", "file:docs/standards/*.md"])
         epics = tomllib.loads((custom / "bmad-create-epics-and-stories.toml").read_text(encoding="utf-8"))
         self.assertIn("Jira project PROJ (https://example.atlassian.net)", epics["workflow"]["on_complete"])
         self.assertEqual(len(epics["workflow"]["persistent_facts"]), 1)
@@ -74,9 +74,19 @@ class InstallOrgAssetsTests(unittest.TestCase):
         self.assertIn("agent-davinci", arch["workflow"]["on_complete"])
         for name in ("bmad-build.toml", "bmad-build-auto.toml"):
             build = tomllib.loads((custom / name).read_text(encoding="utf-8"))
-            self.assertEqual(build["workflow"]["persistent_facts"], ["file:docs/standards/*.md"])
+            self.assertEqual(build["workflow"]["persistent_facts"],
+                             ["file:docs/architecture/*.md", "file:docs/standards/*.md"])
             self.assertIn("close out the project", build["workflow"]["on_complete"])
             self.assertIn("ai_feedback.py", build["workflow"]["on_complete"])
+            self.assertIn("agent-davinci/scripts/stack-check.py", build["workflow"]["on_complete"])
+        build = tomllib.loads((custom / "bmad-build.toml").read_text(encoding="utf-8"))
+        self.assertIn("docs/architecture/architecture.md", build["workflow"]["activation_steps_prepend"][0])
+        self.assertIn("agent-davinci", build["workflow"]["activation_steps_prepend"][0])
+        spec = tomllib.loads((custom / "bmad-spec.toml").read_text(encoding="utf-8"))
+        self.assertIn("docs/architecture/architecture.md", spec["workflow"]["activation_steps_prepend"][0])
+        self.assertIn("agent-davinci", spec["workflow"]["activation_steps_prepend"][0])
+        review = tomllib.loads((custom / "bmad-code-review.toml").read_text(encoding="utf-8"))
+        self.assertIn("stack-check.py", review["workflow"]["on_complete"])
         retro = tomllib.loads((custom / "bmad-retrospective.toml").read_text(encoding="utf-8"))
         self.assertIn("1 (very poor) to 5 (excellent)", retro["workflow"]["on_complete"])
         self.assertIn("not grounded in company data", retro["workflow"]["on_complete"])

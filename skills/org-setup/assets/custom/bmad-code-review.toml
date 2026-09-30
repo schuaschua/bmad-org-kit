@@ -1,5 +1,8 @@
-# Org Kit override (org-setup). Loads the org and project standards as persistent facts.
+# Org Kit override (org-setup). Loads the architecture principles and the org and project standards as
+# persistent facts, and reports files that break the agreed DevOps stack (Da Vinci's stack-check.py) as findings.
 [workflow]
 persistent_facts = [
+  "file:{architecture_glob}",
   "file:{standards_glob}",
 ]
+on_complete = "After the review, the DevOps stack check: run `uv run .claude/skills/agent-davinci/scripts/stack-check.py {project-root}` (Da Vinci's script; resolve {project-root} to the project folder). It compares the project's pipeline and infrastructure-as-code files with the DevOps stack agreed in {architecture_file} (CI, CD/GitOps and IaC tools, for example Jenkins or Terraform). Report each off_stack tool as a high-severity finding (files that use a tool the architecture principles didn't agree, and the agreed tool to use instead). Say nothing about it when it is compliant or there is no architecture.md or DevOps section yet."

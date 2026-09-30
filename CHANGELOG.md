@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.13.0 — 2026-09-30
+
+### Da Vinci
+
+- **Six questions, and a choice before them.** The principles round now opens by asking how to go on:
+  - **answer the questions**;
+  - **pick everything for me**: Da Vinci answers from the documents and safe defaults, marking each pick in the summary you confirm;
+  - **skip the questions**: only what the documents say, with the rest left as open questions.
+
+  Run unattended or told not to ask, he skips, and marks the files as not yet confirmed. The seventeen questions are merged into six, each asking only its open parts:
+  1. where it runs and how it connects;
+  2. rules and priorities;
+  3. solution shape and stack;
+  4. data and AI;
+  5. DevOps: build and deploy;
+  6. DevOps: environments and release.
+
+  Context rows are numbered by part (`1a`, `2b` ...).
+- **DevOps is always asked**, even when the documents mention it, whose answer becomes the default to confirm. It covers:
+  - CI: GitHub Actions, Jenkins, CircleCI, Azure DevOps, Bitbucket Pipelines;
+  - CD and GitOps: Argo CD, Flux, Tekton;
+  - source control and branching;
+  - infrastructure as code;
+  - environments;
+  - approval gates and release strategy;
+  - secrets and scans: SAST, DAST, dependency, image.
+
+  `architecture.md` gains a **DevOps** section.
+- **The build keeps to the agreed stack.** The new `scripts/stack-check.py` reads the DevOps section and flags pipeline and IaC files for a tool nobody agreed, such as `*.bicep` when Terraform was chosen, or a GitHub Actions workflow when Jenkins was. `--strict` also fails when an agreed tool has no files yet.
+- **No spine, no drawing.** Diagrams, design documents and the drift check stop without a spine. This holds even when Da Vinci is told not to ask questions, is running unattended or is asked to sketch: there is no draft mode, no spine of his own and no hand-written `.drawio` or `.docx`. With a spine and no questions allowed, challenge items become gaps.
+
+### Build path
+
+- `bmad-spec` (new override) and `bmad-build` check for `architecture.md` before starting. When it's missing, they stop and offer Da Vinci's guardrails round, and go on only if you say so. Headless, they go on and record it.
+- `bmad-build` runs the stack check before calling work finished. `bmad-build-auto` reports off-stack files at the top of its summary, and `bmad-code-review` raises them as high-severity findings.
+- `bmad-agent-dev`, `bmad-build`, `bmad-build-auto` and `bmad-code-review` load the architecture folder as persistent facts, so the agreed stack guides the code from the start.
+
+### Upgrading
+
+- Rerun `org-setup`. It writes the new `_bmad/custom/bmad-spec.toml`. For `bmad-build.toml`, `bmad-build-auto.toml`, `bmad-code-review.toml`, `bmad-agent-dev.toml` and `bmad-architecture.toml`, it shows the kit's version next to yours to merge.
+- An existing `architecture.md` has no DevOps section, so the stack check reports `no_devops_section` and passes. Ask Da Vinci to revise the principles to add it.
+
 ## 1.12.1 — 2026-09-29
 
 - **Org Kit 1.x requires BMad 6.12.** BMad 6.13 replaces `bmad-create-epics-and-stories` and `bmad-sprint-planning` with `bmad-ticket` and moves the planning documents out of `_bmad-output/planning-artifacts`. The kit's overrides and agents rely on both, so don't install 1.x on BMad 6.13. Org Kit 2.0 will support BMad 6.13.

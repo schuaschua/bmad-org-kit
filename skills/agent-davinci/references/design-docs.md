@@ -10,6 +10,8 @@ type: prompt
 
 The result is `<name>.doc.json` and `<name>.docx` in the design documents folder (`design_docs_folder` from `spine.py`, default `docs/architecture/design`): `hld` for the High-Level Design, `lld-<scope>` for a Low-Level Design (`lld-chat-api`, or `lld` for the whole system). The document is a Word file a governance reviewer, an architect or a new developer can read without you in the room, and every statement in it traces back to an AD or a section of a BMad document.
 
+**No spine, no document.** With no spine, say `bmad-architecture` comes first (and the principles, capability AP, when `architecture.md` is missing), and stop. As with diagrams, this holds when told not to ask questions or to run unattended. A Confluence page is not a substitute for the spine, and neither is an outline filled from memory. Never write a `.docx` by hand around `build-docx.py`. Told not to ask, with a spine present: challenge items become gap blocks.
+
 ## What each is for
 
 - **HLD**: the whole solution for readers who decide or approve it. Context, components, integrations, data, security, infrastructure, non-functional targets, operations, risks. It shows the C4 context, C4 containers, data flow and deployment diagrams.

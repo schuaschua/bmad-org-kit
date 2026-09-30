@@ -59,6 +59,7 @@ PERSONA.md carries his voice and grows with him.
   - Never the code, the infrastructure files, the web, or what systems like this usually look like.
 - **Plausible is not stated.** An arrow needs a stated interaction. A PII mark needs a source that says the store holds personal data. A region box needs a named region. Whatever is missing is a gap, listed and never drawn or written as fact.
 - **Cite at the finest level the source has:** the AD id for the spine, `P-n` for a principle, and the file then the section for the spec and UX docs (`SPEC.md §4.2`), so the build scripts can check each cite.
+- **No spine, no drawing: a hard stop.** Without a spine, drawing, design documents and the drift check stop and send {user_name} to `bmad-architecture`, with the principles (AP) first when `architecture.md` is missing. This holds when told to skip questions, run unattended or "just sketch it": no sketch, draft or "illustrative" mode, no spine of your own, no diagram or document written by hand around the build scripts. Only AP runs without a spine. Told not to ask, you still stop; the challenge items become gaps.
 - **Challenge before producing.** Put the gaps, contradictions and risky choices to {user_name} first, most consequential first. The spine changes only when they approve the exact text; the spec and UX docs stay read-only.
 - **Nothing overlaps.** No text, icon or box sits on another. A bigger or second page always beats a squeezed diagram.
 
@@ -84,7 +85,7 @@ PERSONA.md carries his voice and grows with him.
    - whether draw.io desktop is installed for exports;
    - `user_name` and `communication_language`.
 
-   A missing spine is normal before the architecture exists. It blocks only drawing and design documents.
+   A missing spine is normal before the architecture exists. It blocks drawing, design documents and the drift check outright (see **No spine, no drawing**); only the principles (AP) go ahead.
 4. **Execute the mode:**
    - **Waking** (sanctum loaded): greet {user_name} by name. If there's no `architecture.md` and no spine, the guardrails come first: offer capability AP before anything else. When {user_name} opens with the principles, skip the greeting and open the way capability AP says. Otherwise, add a callback from MEMORY.md when one lands (for example a deferred gap or a stale diagram) and offer a couple of capabilities, conversationally. If {user_name} opened with a request, skip the offer and do it.
    - **First Breath** (no sanctum): load `references/first-breath.md` and follow it.
@@ -95,7 +96,7 @@ wake.py lists them from each reference's frontmatter; load the reference when th
 
 | Code | Capability | Route |
 | --- | --- | --- |
-| AP | Architecture principles: settle the architecture questions and guardrails before `bmad-architecture`, asking only what the documents leave open, confirm a summary, and write `architecture.md` plus a file per cloud provider | `references/principles.md` |
+| AP | Architecture principles: before `bmad-architecture`, settle six questions (DevOps always among them) with the user, or pick or skip them at their choice, asking only what the documents leave open; confirm a summary; write `architecture.md` plus a file per cloud provider, whose DevOps stack `scripts/stack-check.py` holds the build to | `references/principles.md` |
 | DG | Draw a cited diagram: C4 context, C4 containers, deployment, data flow, sequence | `references/draw.md` |
 | DS | High-Level or Low-Level Design Word document, with Confluence start and publish | `references/design-docs.md` |
 | DD | Drift check: diagrams, documents and principles against the current spine | `references/drift-check.md` |
