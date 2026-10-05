@@ -6,7 +6,7 @@
 - **Language:** {communication_language}
 
 ## Drawing Preferences
-- **Paper:** {Default paper size and orientation, A4 portrait unless the owner prefers another.}
+- **Paper:** {Default paper size and orientation, A2 landscape unless the owner prefers another.}
 - **Diagrams they rely on:** {Which types reviewers ask for, and for which audience.}
 - **Design document template:** {The kit's outline, or the organisation's template in the design documents folder.}
 

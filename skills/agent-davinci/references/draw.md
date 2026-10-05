@@ -10,9 +10,9 @@ type: prompt
 
 There is nothing to draw until the architecture exists. With no spine, say `bmad-architecture` comes first (and the principles before it, capability AP, when `architecture.md` is missing), and stop. This is a hard stop. It holds when you've been told not to ask questions or to run unattended. Don't produce a sketch, draft or "illustrative" diagram, don't write a spine yourself, and never write a `.drawio` or model by hand to get around `build-drawio.py`. With several spines, ask which one; unattended, stop and name them.
 
-Told not to ask questions, with a spine present: skip the questions, not the rules. Every challenge item goes into the model's gaps, the paper is A4 portrait, and the report lists the gaps as questions.
+Told not to ask questions, with a spine present: skip the questions, not the rules. Every challenge item goes into the model's gaps, the paper is A2 landscape, and the report lists the gaps as questions.
 
-For a new diagram, ask the paper size (A4, A3 or Letter) and orientation, defaulting to A4 portrait, and record the answer in the model's `page`; a redraw keeps the model's `page` unless {user_name} changes it. Ask which type if they didn't say, and for a sequence, which flow.
+Every diagram is A2 landscape. Don't ask about paper: leave `page` out of the model, and set it only when {user_name} names another size (A4, A3, A1, A0 or Letter) or orientation. A redraw keeps the model's `page` unless {user_name} changes it. Ask which type if they didn't say, and for a sequence, which flow.
 
 The result is `<name>.model.json` and `<name>.drawio` in the diagrams folder, plus `.png` and `.svg` when draw.io desktop is installed. `<name>` is the type (`c4-context`, `c4-containers`, `deployment`, `data-flow`) or `sequence-<flow>`.
 
@@ -36,7 +36,9 @@ On a redraw, the model's existing gaps count as already raised: list them once, 
 
 Then finish the model from the spine as amended. The model is the diagram's source: update it rather than starting over, and keep the gaps that still hold. Then run `uv run scripts/build-drawio.py {project-root} <folder>/<name>.model.json`. It checks every cite before drawing anything (each AD exists in the spine, each cited section exists in its file), and the org drawing rules, and lists every problem. Fix them in the model, and never by giving an element a cite its source doesn't support: an element with nothing to cite moves to the gaps. Replacing an existing `.drawio` needs `--force`, and loses any hand edits in it, so ask first.
 
-The build fits the diagram to the chosen paper on one page, or across two when one would shrink it too far, and says which in `page`. If `page.readable` comes back false, the text would print too small on the chosen paper: offer `page.suggest`, the smallest paper, orientation and page count that carries it readably, and rebuild on the user's choice. Offer a split (one region in detail and the rest summarised, one containers diagram per system boundary, one data flow per trust boundary) only when the user would rather keep the smaller paper, and never squeeze the layout. If the build refuses a diagram because something would still overlap, shorten the longest labels or split the diagram.
+The build lays the diagram out compactly. Arrows share the lanes between rows, they may cross, and when the paper needs it they may lie over each other. Words are the one thing that never overlaps: no label, name or citation sits on another, under an icon or box, or under a line. Don't add spacing, empty layers or filler elements to air a diagram out.
+
+The build fits the diagram to the paper on one page, or across two when one would shrink it too far, and says which in `page`. If `page.readable` comes back false, the text would print too small: offer `page.suggest`, the smallest paper, orientation and page count that carries it readably, and rebuild on the user's choice. Offer a split (one region in detail and the rest summarised, one containers diagram per system boundary, one data flow per trust boundary) only when the user would rather keep the paper. If the build refuses a diagram because words would still overlap, shorten the longest labels or split the diagram.
 
 When the draw.io MCP server is connected, offer to open the finished diagram with `open_drawio_xml` for a preview. Tell the user that layout touch-ups belong in draw.io but content changes belong in the model, because the next rebuild regenerates the file from it.
 

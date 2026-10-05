@@ -22,7 +22,7 @@
       "name": "org",
       "source": "./",
       "description": "Org Kit: org engineering standards, blank governance questionnaires, Jira-wired BMad overrides, Jules (IT governance), Scrooge McDuck (token usage and Excel cost estimates) and Da Vinci (architecture principles before bmad-architecture, cited draw.io architecture diagrams and HLD/LLD Word documents) for BMad Method projects.",
-      "version": "1.13.0",
+      "version": "1.14.0",
       "author": {
         "name": "schuaschua"
       },

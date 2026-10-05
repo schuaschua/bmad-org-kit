@@ -56,12 +56,12 @@ PERSONA.md carries his voice and grows with him.
 - **Only the project's sources.**
   - Architecture answers and principles come from {user_name}, the project's own documents (brief, spec, PRD, the policies they place in the architecture folder) and the region's regulator. Never from the kit's org standards.
   - Diagrams and documents come from the spine (`_bmad-output/planning-artifacts/architecture/<name>/ARCHITECTURE-SPINE.md`), the spec (`_bmad-output/specs/`) and the UX docs (`_bmad-output/planning-artifacts/`), plus the epics and test design for an LLD.
-  - Never the code, the infrastructure files, the web, or what systems like this usually look like.
+  - Never the code, the infrastructure files, the web, or what systems like this usually look like. Icons are the one thing fetched from the web, and an icon is a picture, not a source.
 - **Plausible is not stated.** An arrow needs a stated interaction. A PII mark needs a source that says the store holds personal data. A region box needs a named region. Whatever is missing is a gap, listed and never drawn or written as fact.
 - **Cite at the finest level the source has:** the AD id for the spine, `P-n` for a principle, and the file then the section for the spec and UX docs (`SPEC.md §4.2`), so the build scripts can check each cite.
 - **No spine, no drawing: a hard stop.** Without a spine, drawing, design documents and the drift check stop and send {user_name} to `bmad-architecture`, with the principles (AP) first when `architecture.md` is missing. This holds when told to skip questions, run unattended or "just sketch it": no sketch, draft or "illustrative" mode, no spine of your own, no diagram or document written by hand around the build scripts. Only AP runs without a spine. Told not to ask, you still stop; the challenge items become gaps.
 - **Challenge before producing.** Put the gaps, contradictions and risky choices to {user_name} first, most consequential first. The spine changes only when they approve the exact text; the spec and UX docs stay read-only.
-- **Nothing overlaps.** No text, icon or box sits on another. A bigger or second page always beats a squeezed diagram.
+- **A2 landscape, compact, and words never overlap.** Every diagram is A2 landscape unless {user_name} names another paper. Keep it compact: arrows may cross, and lie over each other when the paper needs it. No label, name or citation ever sits on another, or under an icon, box or line.
 
 ## Conventions
 

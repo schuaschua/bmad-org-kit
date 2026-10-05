@@ -23,11 +23,12 @@ Model (`cite` is a string or a list of strings):
       "spine": "_bmad-output/planning-artifacts/architecture/<name>/ARCHITECTURE-SPINE.md",
       "sources": ["_bmad-output/specs/SPEC.md"],
       "direction": "TB | LR",                   optional; data-flow defaults to LR, others TB
-      "page": {"size": "A4 | A3 | Letter", "orientation": "portrait | landscape"},   default A4 portrait
+      "page": {"size": "A4 | A3 | A2 | A1 | A0 | Letter", "orientation": "portrait | landscape"},   default A2 landscape
       "provider": "azure",                      deployment only; the stencil catalogue for `icon` (default azure)
       "groups": [{"id", "label", "kind", "parent"?, "icon"?, "cite"}],
       "nodes":  [{"id", "label", "kind", "group"?, "tech"?, "description"?, "data"?: ["PII", "PHI"],
-                  "icon"?: "stencil id (stencils.py search): the provider's (app_services/App_Services) or library:id (kubernetes:pod)",
+                  "icon"?: "stencil id (stencils.py search): the provider's (app_services/App_Services) or library:id (kubernetes:pod);
+                            or the https:// address of an SVG or PNG, fetched once and kept in icons/ beside the model",
                   "style"?: "raw draw.io style, only for a shape no catalogue holds",
                   "layer"?: 0, "cite"}],
       "edges":  [{"from", "to", "label", "tech"?, "data"?, "dashed"?: true, "cite"}],
@@ -44,8 +45,10 @@ Kinds per type:
     data-flow      nodes external, process, store, person; groups trust_boundary
     sequence       participants person, system, system_ext, container, container_ext, service, external
 
-Layout is layered (longest path over the edges, barycentre ordering), groups get their own
-columns so boxes never overlap, and the page is the model's paper size and orientation (default A4 portrait). The drawing is fitted
+Layout is layered (longest path over the edges, barycentre ordering) and compact: groups get their
+own columns, and arrows share lanes between rows. Arrows may cross, and lie over each other when
+the paper needs it; words never overlap anything. The page is the model's paper size and
+orientation (default A2 landscape). The drawing is fitted
 to one page, or two when one would shrink it too far; the result reports `page.pages` and
 `page.scale`. Below 0.7 even on two pages the citations print too small: `page.readable` is
 false and `other_orientation_scale` says whether turning the paper would help. Diagram-level metadata (type, drawn time, spine stamp, AD hashes, source hashes) sits
@@ -60,11 +63,17 @@ Exit codes: 0=success, 1=invalid model, or <name>.drawio exists without --force,
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import html
 import json
 import re
+import struct
 import subprocess
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
@@ -124,11 +133,16 @@ PERSON = (44, 52)         # actor figure; its label sits below it
 ICON = 56                 # library icon (e.g. Azure); its label sits below it
 ICON_SLOT = 120           # width an icon or a person takes in its row
 GROUP_ICON = 26           # icon in a group's header (e.g. the AKS cluster)
-GAP_ACROSS = 40
-PAD_START, PAD_END = 38, 16
-TOP = 90                  # room for the title and stamp
-PAPER = {"A4": (827, 1169), "A3": (1169, 1654), "A2": (1654, 2339), "Letter": (850, 1100)}  # page units, portrait
-PAPER_UP = ["A4", "A3", "A2"]  # sizes to suggest, smallest first
+GAP_ACROSS = 24
+ROW_MARGIN = 8            # space between a row and the arrow lanes beside it
+PAD_START, PAD_END = 34, 12
+TOP = 72                  # room for the title and stamp
+PAPER = {"A4": (827, 1169), "A3": (1169, 1654), "A2": (1654, 2339), "A1": (2339, 3311), "A0": (3311, 4681),
+         "Letter": (850, 1100)}  # page units, portrait
+PAPER_UP = ["A4", "A3", "A2", "A1", "A0"]  # sizes to suggest, smallest first
+DEFAULT_PAGE = ("A2", "landscape")
+ICON_TYPES = {"svg": "image/svg+xml", "png": "image/png"}  # what an icon from the web may be
+ICON_MAX = 512 * 1024
 MIN_READABLE_SCALE = 0.7  # below this the 9pt citations print under ~6pt, even across two pages
 
 
@@ -174,6 +188,55 @@ def gmap_(groups: list[dict], gid: str) -> dict:
     return next((g for g in groups if g["id"] == gid), {})
 
 
+def icon_file(url: str) -> str:
+    """The name (without extension) a web icon is kept under in the icons folder."""
+    name = re.sub(r"[^a-z0-9]+", "-", Path(urllib.parse.urlparse(url).path).stem.lower()).strip("-")[:40]
+    return f"{name or 'icon'}-{hashlib.sha256(url.encode()).hexdigest()[:8]}"
+
+
+def web_icon(url: str, cache: Path | None) -> dict:
+    """A stencil for an SVG or PNG at an https address, embedded in the drawing.
+
+    The file is kept in `cache`, so a rebuild needs no network and draws the same picture.
+    Raises ValueError saying what is wrong with the address or the file.
+    """
+    if not url.startswith("https://"):
+        raise ValueError("is not an https:// address")
+    kept = next((f for ext in ICON_TYPES if cache and (f := cache / f"{icon_file(url)}.{ext}").is_file()), None)
+    if kept:
+        data = kept.read_bytes()
+    else:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "org-kit agent-davinci"})
+            with urllib.request.urlopen(req, timeout=20) as res:
+                data = res.read(ICON_MAX + 1)
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            raise ValueError(f"could not be fetched ({exc})") from exc
+    if len(data) > ICON_MAX:
+        raise ValueError(f"is larger than {ICON_MAX // 1024} KB")
+    w = h = 64.0
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) > 24:
+        ext = "png"
+        w, h = struct.unpack(">II", data[16:24])
+    elif (tag := re.search(rb"<svg\b[^>]*>", data)):
+        ext = "svg"
+        attrs = tag.group(0).decode("utf-8", "replace")
+        size = [re.search(rf'\b{k}="([\d.]+)(?:px)?"', attrs) for k in ("width", "height")]
+        box = re.search(r'\bviewBox="[\d.eE+-]+[\s,]+[\d.eE+-]+[\s,]+([\d.]+)[\s,]+([\d.]+)"', attrs)
+        if all(size):
+            w, h = (float(m.group(1)) for m in size)
+        elif box:
+            w, h = float(box.group(1)), float(box.group(2))
+    else:
+        raise ValueError("is neither an SVG nor a PNG")
+    if cache and not kept:
+        cache.mkdir(parents=True, exist_ok=True)
+        (cache / f"{icon_file(url)}.{ext}").write_bytes(data)
+    return {"id": url, "title": url, "category": "", "w": w or 64, "h": h or 64,
+            "style": "aspect=fixed;html=1;points=[];align=center;image;fontSize=12;"
+                     f"image=data:{ICON_TYPES[ext]},{base64.b64encode(data).decode('ascii')};"}
+
+
 def section_exists(ref: str, headings: list[tuple[str, str]]) -> bool:
     """Does the part of a cite after the file name name one of the file's headings?"""
     ref = ref.strip().lstrip("#:").strip().lstrip("§").strip().strip('"\'“”').strip()
@@ -187,8 +250,11 @@ def section_exists(ref: str, headings: list[tuple[str, str]]) -> bool:
     return False
 
 
-def validate(model: dict, root: Path) -> list[Path]:
-    """Raise ModelError listing every problem; return the source files (spine first)."""
+def validate(model: dict, root: Path, icons: Path | None = None) -> list[Path]:
+    """Raise ModelError listing every problem; return the source files (spine first).
+
+    `icons` is the folder that keeps icons fetched from the web.
+    """
     problems: list[str] = []
     kind = model.get("type")
     if kind not in TYPES:
@@ -246,6 +312,13 @@ def validate(model: dict, root: Path) -> list[Path]:
             continue
         if kind != "deployment":
             problems.append(f"{item.get('id')}: icons are for deployment diagrams")
+            continue
+        if item["icon"].startswith(("http://", "https://")):
+            try:
+                item["_stencil"] = web_icon(item["icon"], icons)
+            except ValueError as exc:
+                problems.append(f"{item.get('id')}: icon {item['icon']!r} {exc}; use an SVG or PNG under {ICON_MAX // 1024} KB "
+                                "at an https:// address, or a catalogue stencil")
             continue
         library, _, sid = item["icon"].rpartition(":")
         library = library or provider
@@ -339,7 +412,7 @@ def validate(model: dict, root: Path) -> list[Path]:
                     problems.append(f"edge {i}: {end} {e.get(end)!r} is not a node")
             check(f"edge {i} ({e.get('from')} -> {e.get('to')})", e)
     page = model.get("page") or {}
-    if page.get("size", "A4") not in PAPER or page.get("orientation", "portrait") not in ("portrait", "landscape"):
+    if page.get("size", DEFAULT_PAGE[0]) not in PAPER or page.get("orientation", DEFAULT_PAGE[1]) not in ("portrait", "landscape"):
         problems.append(f"page must be {{\"size\": one of {sorted(PAPER)}, \"orientation\": \"portrait\" or \"landscape\"}}")
     if not isinstance(model.get("gaps", []), list):
         problems.append("gaps must be a list of strings")
@@ -356,7 +429,7 @@ def validate(model: dict, root: Path) -> list[Path]:
 LINE = 1.3                # line height as a multiple of the font size
 LABEL_W = 150             # wrap width of a label under an icon or a person
 EDGE_LABEL_W = 170        # wrap width of an arrow's label
-TRACK_MARGIN = 8          # space around an arrow's lane
+TRACK_MARGIN = 5          # space around an arrow's lane
 HEADER_H = 20             # one line of a box's header text
 
 
@@ -535,8 +608,11 @@ def seg_hits(p: tuple, q: tuple, r: Rect, pad: float = 2) -> bool:
     return x0 < r.x + r.w - pad and r.x + pad < x1 + 0.01 and y0 < r.y + r.h - pad and r.y + pad < y1 + 0.01
 
 
-def plan_graph(model: dict, spread: float) -> dict:
-    """Place nodes, groups and routed arrows; everything in absolute page units."""
+def plan_graph(model: dict, spread: float, shared: dict | None = None) -> dict:
+    """Place nodes, groups and routed arrows; everything in absolute page units.
+
+    `shared` (from share_lanes) puts several arrows in one lane; without it each arrow has its own.
+    """
     nodes, edges, groups = model.get("nodes", []), model.get("edges", []), model.get("groups", [])
     lr = model.get("direction", "LR" if model["type"] == "data-flow" else "TB") == "LR"
     with_tech = model["type"] != "c4-context"
@@ -600,11 +676,17 @@ def plan_graph(model: dict, spread: float) -> dict:
     for lyr in range(last_gap + 1):
         ends = max((nested(g, 1, lyr) for g in span), default=0)
         starts = max((nested(g, 0, lyr + 1) for g in span), default=0) if lyr < top_layer else 0
-        y = offsets[lyr] + row_b[lyr] + ends * PAD_END + 14 + spread / 2
-        for r, role, h in lanes.get(lyr, []):
-            lane_y[(r["i"], role)] = (y, y + h)
-            y += h
-        offsets.append(y + 14 + spread / 2 + starts * PAD_START)
+        y = offsets[lyr] + row_b[lyr] + ends * PAD_END + ROW_MARGIN + spread / 2
+        tracks: dict[int, float] = {}  # lane number -> its height
+        number = {}
+        for k, (r, role, h) in enumerate(lanes.get(lyr, [])):
+            number[(r["i"], role)] = shared[(r["i"], role)] if shared else k
+            tracks[number[(r["i"], role)]] = max(h, tracks.get(number[(r["i"], role)], 0))
+        for t in sorted(tracks):
+            for item in (i for i, n in number.items() if n == t):
+                lane_y[item] = (y, y + tracks[t])
+            y += tracks[t]
+        offsets.append(y + ROW_MARGIN + spread / 2 + starts * PAD_START)
     along = lambda lyr: offsets[lyr]  # noqa: E731
 
     # --- boxes: header room; in TB a box's contents start right of its header text ---
@@ -781,6 +863,7 @@ def plan_graph(model: dict, spread: float) -> dict:
             clean.reverse()
         r["path"] = clean
         r["lane"] = ly
+        r["jog"] = sum(lane_y[(r["i"], "jog")]) / 2 if (r["i"], "jog") in lane_y else None
     # --- arrow labels: on the arrow's own path, clear of every other arrow, text, icon and box ---
     segs = [(r["i"], p, q) for r in routes if not r["loop"] for p, q in zip(r["path"], r["path"][1:])]
     fixed = list(vis.values()) + list(headers.values())
@@ -836,7 +919,52 @@ def plan_graph(model: dict, spread: float) -> dict:
             r["path"] = []
             r["label_rect"] = Rect(vis[nid].x + vis[nid].w + 30, shape[nid].y, lw, lh, f"label of arrow {r['i'] + 1}")
     return {"vis": vis, "shape": shape, "groups": group_rect, "headers": headers, "routes": routes,
-            "spec": spec, "lr": lr, "layer": layer}
+            "spec": spec, "lr": lr, "layer": layer,
+            "lanes": [[(r["i"], role) for r, role, _ in lanes[lyr]] for lyr in sorted(lanes)]}
+
+
+def share_lanes(plan: dict, over: bool) -> dict:
+    """Pack each gap's arrows into as few lanes as their words allow: {(arrow, role): lane number}.
+
+    Arrows share a lane when they sit clear of each other along it. With `over` their lines may also
+    lie over each other, so long as no line runs under another arrow's label.
+    """
+    al = 0 if plan["lr"] else 1  # index of the coordinate that runs from row to row
+    routes = {r["i"]: r for r in plan["routes"] if not r["loop"]}
+
+    def hit(u, v) -> bool:
+        return bool(u and v) and u[0] < v[1] + 6 and v[0] < u[1] + 6
+
+    shared = {}
+    for items in plan["lanes"]:
+        tracks: list[list[tuple]] = []  # per lane, the (line, label) extents already in it
+        for i, role in items:
+            r = routes[i]
+            level = r["lane"] if role == "label" else r["jog"]
+            on = [pt[1 - al] for p, q in zip(r["path"], r["path"][1:])
+                  if abs(p[al] - level) < 0.01 and abs(q[al] - level) < 0.01 for pt in (p, q)]
+            size = r["size"][1 - al] if role == "label" else 0
+            if on:
+                line = (min(on), max(on))
+                mid = (line[0] + line[1]) / 2
+                label = (mid - size / 2, mid + size / 2) if size else None
+            else:  # a straight arrow: no run along the lane, and its label sits beside it
+                c = r["path"][0][1 - al]
+                line, label = (c, c), (c - size - 6, c + size + 6) if size else None
+            hull = (min(line[0], label[0]), max(line[1], label[1])) if label else line
+            for t, held in enumerate(tracks):
+                if over:
+                    clash = any(hit(label, lb) or hit(label, ln) or hit(lb, line) for ln, lb, _ in held)
+                else:
+                    clash = any(hit(hull, hl) for _, _, hl in held)
+                if not clash:
+                    break
+            else:
+                t = len(tracks)
+                tracks.append([])
+            tracks[t].append((line, label, hull))
+            shared[(i, role)] = t
+    return shared
 
 
 def overlaps(model: dict, plan: dict) -> list[str]:
@@ -957,13 +1085,30 @@ def along_path(path: list[tuple], point: tuple) -> float:
     return 0.0
 
 
-def draw_graph(model: dict, root_el) -> tuple[float, float]:
+def extent(plan: dict) -> tuple[float, float]:
+    """The right and bottom edges of everything a plan draws."""
+    rects = list(plan["vis"].values()) + list(plan["groups"].values()) + [r["label_rect"] for r in plan["routes"]]
+    pts = [p for r in plan["routes"] for p in r["path"]]
+    return (max([r.x + r.w for r in rects] + [p[0] for p in pts]),
+            max([r.y + r.h for r in rects] + [p[1] for p in pts]) + 30)
+
+
+def draw_graph(model: dict, root_el, fit_of) -> tuple[float, float]:
     problems: list[str] = []
-    for spread in (0, 30, 60, 100, 150):  # spread the layout until nothing collides; never shrink it
-        plan = plan_graph(model, spread)
-        problems = overlaps(model, plan)
-        if not problems:
+    plan = None
+    for spread in (0, 10, 20, 30, 45, 60, 80, 100, 150):  # spread the layout only as far as it takes for no words to collide
+        own = plan_graph(model, spread)
+        # tidiest first: arrows sharing lanes clear of each other, then lying over each other, then a lane each
+        plans = [plan_graph(model, spread, share_lanes(own, over)) for over in (False, True)] + [own]
+        clean = [p for p in plans if not overlaps(model, p)]
+        if clean:
+            fits = [fit_of(*extent(p)) for p in clean]
+            whole = [p for p, f in zip(clean, fits) if f["pages"] == 1 and f["scale"] >= 1]
+            # arrows lie over each other only when that is what gets the drawing onto the paper
+            plan = whole[0] if whole else max(zip(clean, fits), key=lambda pf: (-pf[1]["pages"], pf[1]["scale"]))[0]
+            problems = []
             break
+        problems = overlaps(model, own)
     if problems:
         raise ModelError("could not lay the diagram out without overlaps (" + "; ".join(problems[:6]) +
                          (f"; and {len(problems) - 6} more" if len(problems) > 6 else "") +
@@ -1028,11 +1173,7 @@ def draw_graph(model: dict, root_el) -> tuple[float, float]:
         add_cell(root_el, f"e-{r['i'] + 1}", r["text"], style, "1", edge=True, source=f"n-{e['from']}",
                  target=f"n-{e['to']}", cite=e["cite"], waypoints=path[1:-1],
                  label_x=along_path(path, r["label_point"]), label_offset=r["label_offset"])
-    rects = list(plan["vis"].values()) + list(grect.values()) + [r["label_rect"] for r in plan["routes"]]
-    pts = [p for r in plan["routes"] for p in r["path"]]
-    right = max([r.x + r.w for r in rects] + [p[0] for p in pts])
-    bottom = max([r.y + r.h for r in rects] + [p[1] for p in pts])
-    return right, bottom + 30
+    return extent(plan)
 
 
 def draw_sequence(model: dict, root_el) -> tuple[float, float]:
@@ -1043,10 +1184,10 @@ def draw_sequence(model: dict, root_el) -> tuple[float, float]:
         for end in (m["from"], m["to"]):
             first.setdefault(end, j)
     parts = sorted(model["participants"], key=lambda p: first.get(p["id"], len(msgs)))  # left to right as they appear
-    gap = 70
+    gap = 70 if any(m["from"] == m["to"] for m in msgs) else 30  # a self-message's label sits right of its lifeline
     head = max(60, max(block_size(node_lines(p), W - 16)[1] + 16 for p in parts))
     texts = [edge_text(m, prefix=f"{j}. ") for j, m in enumerate(msgs, 1)]
-    step = max(44, max(size[1] for _, size in texts) + 20)
+    step = max(36, max(size[1] for _, size in texts) + 12)
     height = head + step * (len(msgs) + 1)
     cx = {}
     for i, p in enumerate(parts):
@@ -1116,8 +1257,8 @@ def stamp_line(st: dict, drawn: str) -> str:
     return f"Drawn {drawn[:10]} from {st['spine']} {src}"
 
 
-def build(model: dict, root: Path) -> tuple[bytes, dict]:
-    sources = validate(model, root)
+def build(model: dict, root: Path, icons: Path | None = None) -> tuple[bytes, dict]:
+    sources = validate(model, root, icons)
     st = spine_mod.stamp(root, sources[0])
     drawn = datetime.now(timezone.utc).isoformat(timespec="seconds")
     items = [i for k in ("nodes", "groups", "edges", "participants", "messages") for i in model.get(k, [])]
@@ -1141,12 +1282,6 @@ def build(model: dict, root: Path) -> tuple[bytes, dict]:
     ET.SubElement(meta, "mxCell")
     ET.SubElement(root_el, "mxCell", {"id": "1", "parent": "0"})
 
-    right, bottom = (draw_sequence if model["type"] == "sequence" else draw_graph)(model, root_el)
-    right = max(right, 520)
-    add_cell(root_el, "title", f"<b>{html.escape(TYPE_NAMES[model['type']])}: {html.escape(model['title'])}</b>",
-             "text;html=1;align=left;verticalAlign=top;fontSize=16;", "1", (20, 10, right - 20, 28))
-    add_cell(root_el, "stamp", html.escape(stamp_line(st, drawn)),
-             "text;html=1;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;", "1", (20, 38, right - 20, 20))
     gaps = [str(g) for g in model.get("gaps", []) if str(g).strip()]
     notes = []
     if model["type"] == "data-flow":
@@ -1154,14 +1289,31 @@ def build(model: dict, root: Path) -> tuple[bytes, dict]:
                      "red dashed boxes are trust boundaries.")
     notes.append("<b>Gaps (not drawn):</b>" + ("<br>" + "<br>".join(f"• {html.escape(g)}" for g in gaps) if gaps else " none"))
     notes.append("Each element's source is in grey under its name and in its tooltip.")
-    notes_w = right - 20 - 16
-    notes_h = 24 + sum(block_size([(re.sub("<[^>]+>", "", part), 11, False)], notes_w)[1]
-                       for n in notes for part in n.split("<br>"))
+    page = model.get("page") or {}
+
+    def notes_height(right: float) -> float:
+        return 24 + sum(block_size([(re.sub("<[^>]+>", "", part), 11, False)], right - 20 - 16)[1]
+                        for n in notes for part in n.split("<br>"))
+
+    def fit_of(right: float, bottom: float) -> dict:
+        right = max(right, 520)
+        return page_fit(right + 20, bottom + notes_height(right) + 20,
+                        page.get("size", DEFAULT_PAGE[0]), page.get("orientation", DEFAULT_PAGE[1]))
+
+    if model["type"] == "sequence":
+        right, bottom = draw_sequence(model, root_el)
+    else:
+        right, bottom = draw_graph(model, root_el, fit_of)
+    fit = fit_of(right, bottom)
+    right = max(right, 520)
+    notes_h = notes_height(right)
+    add_cell(root_el, "title", f"<b>{html.escape(TYPE_NAMES[model['type']])}: {html.escape(model['title'])}</b>",
+             "text;html=1;align=left;verticalAlign=top;fontSize=16;", "1", (20, 10, right - 20, 28))
+    add_cell(root_el, "stamp", html.escape(stamp_line(st, drawn)),
+             "text;html=1;align=left;verticalAlign=top;fontSize=10;fontColor=#555555;", "1", (20, 38, right - 20, 20))
     add_cell(root_el, "notes", "<br><br>".join(notes),
              "text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;strokeColor=#CCCCCC;fillColor=#FAFAFA;spacing=8;",
              "1", (20, bottom, right - 20, notes_h))
-    page = model.get("page") or {}
-    fit = page_fit(right + 20, bottom + notes_h + 20, page.get("size", "A4"), page.get("orientation", "portrait"))
     graph.attrib.update({"pageWidth": str(fit.pop("page_width")), "pageHeight": str(fit.pop("page_height"))})
     meta.set("page", f"{fit['size']} {fit['orientation']} x{fit['pages']} at {fit['scale']}")
     ET.indent(mxfile)
@@ -1210,7 +1362,7 @@ def main(argv: list[str] | None = None) -> int:
     target = model_path.with_name(model_path.name[: -len(".model.json")] + ".drawio")
     try:
         model = json.loads(model_path.read_text(encoding="utf-8"))
-        xml_bytes, report = build(model, root)
+        xml_bytes, report = build(model, root, model_path.parent / "icons")
         if target.exists() and not args.force:
             print(json.dumps({"status": "error", "message": f"{target.name} exists; pass --force to replace it (hand edits in it are lost)"}))
             return 1
