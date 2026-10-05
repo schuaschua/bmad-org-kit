@@ -154,11 +154,11 @@ class BuildTests(Project):
         self.assertEqual(code, 1)
         self.assertIn("put every region group inside one enclosing group", out["message"])
 
-    def test_page_defaults_to_a4_portrait_and_follows_the_model(self):
+    def test_page_defaults_to_a2_landscape_and_follows_the_model(self):
         code, out = self.build(containers_model())
-        self.assertEqual((out["page"]["size"], out["page"]["orientation"], out["page"]["pages"]), ("A4", "portrait", 1))
+        self.assertEqual((out["page"]["size"], out["page"]["orientation"], out["page"]["pages"]), ("A2", "landscape", 1))
         graph = ET.parse(self.folder / "c4-containers.drawio").getroot().find("diagram/mxGraphModel")
-        self.assertEqual((graph.get("pageWidth"), graph.get("pageHeight")), ("827", "1169"))
+        self.assertEqual((graph.get("pageWidth"), graph.get("pageHeight")), ("2339", "1654"))
         code, out = self.build(containers_model(page={"size": "A3", "orientation": "landscape"}), "c4-containers", "--force")
         self.assertEqual((out["page"]["size"], out["page"]["orientation"]), ("A3", "landscape"))
         code, out = self.build(containers_model(page={"size": "B5"}), "c4-containers", "--force")
@@ -194,11 +194,15 @@ class BuildTests(Project):
             self.assertIn("edgeStyle=none", cells[f"e-{i}"].get("style"))  # arrows follow the routed lanes
             self.assertIsNotNone(cells[f"e-{i}"].find("mxGeometry/Array"))
 
-    def test_overlap_check_catches_a_collision(self):
+    def module(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location("build_drawio", SCRIPTS / "build-drawio.py")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
+        return mod
+
+    def test_overlap_check_catches_a_collision(self):
+        mod = self.module()
         model = self.crowded_model()
         mod.validate(model, self.root)
         plan = mod.plan_graph(model, 0)
@@ -206,6 +210,46 @@ class BuildTests(Project):
         a, b = plan["vis"]["a"], plan["vis"]["b"]
         a.x, a.y = b.x + 5, b.y + 5  # plant one icon on the box beside it
         self.assertTrue(any("node a overlaps node b" in p or "node b overlaps node a" in p for p in mod.overlaps(model, plan)))
+
+    def test_arrows_share_lanes_to_save_space(self):
+        mod = self.module()
+        fan = lambda src, to: [{"id": src, "label": src, "kind": "container", "cite": "AD-1"}] + [  # noqa: E731
+            {"id": t, "label": t, "kind": "container", "cite": "AD-1"} for t in to]
+        model = {"type": "c4-containers", "title": "Two fans", "spine": SPINE_REL,
+                 "nodes": fan("a", ["a1", "a2"]) + fan("b", ["b1", "b2"]),
+                 "edges": [{"from": s, "to": f"{s}{k}", "label": "calls", "cite": "AD-1"} for s in "ab" for k in (1, 2)]}
+        mod.validate(model, self.root)
+        own = mod.plan_graph(model, 0)
+        apart = mod.plan_graph(model, 0, mod.share_lanes(own, False))
+        over = mod.plan_graph(model, 0, mod.share_lanes(own, True))
+        self.assertEqual(set(mod.share_lanes(own, False).values()), {0})  # four arrows, clear of each other, in one lane
+        self.assertLess(mod.extent(apart)[1], mod.extent(own)[1])
+        self.assertLessEqual(mod.extent(over)[1], mod.extent(apart)[1])
+        for plan in (apart, over):  # lines may cross or lie over each other; words stay clear
+            self.assertEqual(mod.overlaps(model, plan), [])
+
+    def test_web_icon_is_kept_beside_the_model_and_embedded(self):
+        mod = self.module()
+        url = "https://example.com/logos/Snowflake.svg"
+        model = {"type": "deployment", "title": "Hosting", "spine": SPINE_REL,
+                 "nodes": [{"id": "dw", "label": "Snowflake", "kind": "service", "icon": url, "cite": "AD-2"}]}
+        (self.folder / "icons").mkdir()  # already fetched: the build needs no network
+        (self.folder / "icons" / f"{mod.icon_file(url)}.svg").write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24"><rect width="48" height="24"/></svg>', encoding="utf-8")
+        code, out = self.build(model, "deployment")
+        self.assertEqual(code, 0, out)
+        dw = next(o for o in ET.parse(self.folder / "deployment.drawio").getroot().iter("object") if o.get("id") == "n-dw")
+        self.assertIn("image=data:image/svg+xml,PHN2Zy", dw.find("mxCell").get("style"))
+        geo = dw.find("mxCell/mxGeometry")
+        self.assertEqual(float(geo.get("width")), 2 * float(geo.get("height")))  # the icon keeps its shape
+        model["nodes"][0]["icon"] = "http://example.com/logo.svg"
+        code, out = self.build(model, "deployment", "--force")
+        self.assertEqual(code, 1)
+        self.assertIn("is not an https:// address", out["message"])
+        (self.folder / "icons" / f"{mod.icon_file(url)}.svg").write_text("<html>not found</html>", encoding="utf-8")
+        model["nodes"][0]["icon"] = url
+        code, out = self.build(model, "deployment", "--force")
+        self.assertIn("is neither an SVG nor a PNG", out["message"])
 
     def test_cited_sections_must_exist(self):
         model = containers_model()

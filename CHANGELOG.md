@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.14.0 — 2026-10-05
+
+### Da Vinci
+
+- **Every diagram is A2 landscape by default.** He no longer asks about paper. Name another size (A4, A3, A1, A0, Letter) or orientation and it's recorded in the model's `page`; an existing model keeps the `page` it has.
+- **Compact layout.** Arrows now share the lanes between rows instead of taking one each, and the spacing around rows, boxes and lifelines is tighter. Arrows may cross, and when the drawing wouldn't otherwise fit the paper they may lie over each other. A sample two-region deployment takes about 30% less area and fits one A2 page.
+- **Only words never overlap.** No label, name or citation sits on another, or under an icon, box or line. The build still refuses a diagram where that can't be done.
+- **Icons from the web.** In a deployment model, `icon` can be the `https://` address of an SVG or PNG (under 512 KB) when no stencil names the service. The build fetches it once, keeps it in `icons/` beside the model and embeds it in the `.drawio`, so rebuilds need no network. `stencils.py extract --index` also takes the web address of draw.io's shape index, to build a whole provider's catalogue. An icon is a picture, never a source: the element still needs its cite.
+
 ## 1.13.0 — 2026-09-30
 
 ### Da Vinci

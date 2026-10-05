@@ -2,7 +2,7 @@
 
 A BMad module that adds the organisation layer to a BMad Method (`bmm`) project: org standards, governance sign-off, cost estimates, design documents and diagrams, and a count of what the AI-assisted delivery itself cost. Everything is produced inside the BMad flow, from the artifacts BMad already writes: the spine, spec, UX docs, epics and sprint status.
 
-Version 1.13.0 ([CHANGELOG.md](CHANGELOG.md)). Requires BMad 6.12. BMad 6.13 replaces the epics and sprint planning skills with `bmad-ticket`; Org Kit 2.0 will support it.
+Version 1.14.0 ([CHANGELOG.md](CHANGELOG.md)). Requires BMad 6.12. BMad 6.13 replaces the epics and sprint planning skills with `bmad-ticket`; Org Kit 2.0 will support it.
 
 ## What's in it
 
@@ -123,7 +123,7 @@ Da Vinci is a memory agent. He remembers the principles you held firm on and the
 
     `bmad-build` won't call off-stack work finished until it's fixed or you keep it, `bmad-build-auto` reports it, and `bmad-code-review` raises it as findings. `--strict` also fails when an agreed tool has no files yet.
 - **No spine, no drawing.** Diagrams, documents and the drift check need a spine. Without one Da Vinci stops, even when told not to ask questions or to just sketch; there's no draft mode.
-- **Diagrams**: "draw the deployment diagram", "sequence diagram for one chat turn". A `.drawio` file with a `<name>.model.json` beside it listing each element's citation. They use Azure and Kubernetes icons from draw.io's libraries and follow the org's drawing rules. Nothing overlaps, and the paper size is chosen to fit. PNG and SVG exports need draw.io desktop.
+- **Diagrams**: "draw the deployment diagram", "sequence diagram for one chat turn". A `.drawio` file with a `<name>.model.json` beside it listing each element's citation. They use Azure and Kubernetes icons from draw.io's libraries, fetch any other icon from the web, and follow the org's drawing rules. Every diagram is A2 landscape unless you name another paper, and laid out compactly: arrows may cross or lie over each other, but words never overlap. PNG and SVG exports need draw.io desktop.
 - **Documents**: "write the HLD", "LLD for the Chat API". `hld.docx` or `lld-<component>.docx`, with the current diagrams embedded, open points collected in an appendix, and a trace from each AD to where it's cited. They follow the org outline, or your template in `<design docs folder>/templates/`. Da Vinci can start from an existing Confluence page and publish to Confluence, asking first.
 - **Drift**: `uv run skills/agent-davinci/scripts/diagram-drift.py <project-root>` names the ADs that changed. It exits 1 when anything is stale, so it also works in CI. Da Vinci also checks the spine still honours the principles.
 

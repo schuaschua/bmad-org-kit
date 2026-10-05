@@ -21,7 +21,7 @@ doesn't hold.
 Usage:
     uv run stencils.py search <library> <service name> [--limit 5]
     uv run stencils.py list
-    uv run stencils.py extract --index <search-index.json> --provider <library> --prefix <library prefix> [-o <file>]
+    uv run stencils.py extract --index <search-index.json or its https:// address> --provider <library> --prefix <library prefix> [-o <file>]
 
 Exit codes: 0=success, 1=unknown provider or nothing matched, 2=unreadable input
 """
@@ -32,6 +32,8 @@ import argparse
 import json
 import re
 import sys
+import urllib.error
+import urllib.request
 from datetime import date
 from pathlib import Path
 
@@ -138,8 +140,12 @@ def main(argv: list[str] | None = None) -> int:
                           **({} if found else {"message": "no stencil matches; draw a labelled box"})}, indent=2))
         return 0 if found else 1
     try:
-        index = json.loads(Path(args.index).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        if args.index.startswith("https://"):
+            with urllib.request.urlopen(args.index, timeout=60) as res:
+                index = json.loads(res.read().decode("utf-8"))
+        else:
+            index = json.loads(Path(args.index).read_text(encoding="utf-8"))
+    except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
         print(json.dumps({"status": "error", "message": str(exc)}))
         return 2
     catalogue = extract(index, args.provider, args.prefix)
